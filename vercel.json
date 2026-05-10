@@ -1,7 +1,8 @@
 {
   "version": 2,
-  "cleanUrls": true,
-  "trailingSlash": false,
+  "builds": [
+    { "src": "*.html", "use": "@vercel/static" }
+  ],
   "routes": [
     { "src": "/", "dest": "/index.html" },
     { "src": "/about", "dest": "/about.html" }
