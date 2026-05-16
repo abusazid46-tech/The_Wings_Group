@@ -170,6 +170,62 @@
   }
   .uc-cart-badge.show { display: flex; }
 
+  /* ===== PROMO NOTIFICATION PANEL ===== */
+  .promo-panel {
+    background: linear-gradient(100deg, #5b28d6 0%, #6f32db 48%, #efe9ff 100%);
+    color: white;
+    overflow: hidden;
+    border-bottom: 1px solid rgba(10,22,40,0.08);
+  }
+  .promo-panel-inner {
+    min-height: 104px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    position: relative;
+  }
+  .promo-copy {
+    padding: 20px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .promo-price {
+    font-size: clamp(1.05rem, 2.2vw, 1.45rem);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .promo-price del {
+    color: rgba(255,255,255,0.62);
+    font-weight: 600;
+    margin-left: 5px;
+  }
+  .promo-offer {
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    margin-bottom: 12px;
+  }
+  .promo-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    text-decoration: none;
+    font-size: 0.96rem;
+    font-weight: 800;
+  }
+  .promo-action:hover { color: white; }
+  .promo-image {
+    align-self: stretch;
+    width: min(44vw, 440px);
+    min-height: 104px;
+    object-fit: cover;
+    object-position: center;
+    clip-path: polygon(12% 0, 100% 0, 100% 100%, 0 100%);
+  }
+
   /* ===== UC HERO ===== */
   .uc-hero {
     background: var(--white);
@@ -594,6 +650,31 @@
       font-size: 0.9rem;
       background: white;
     }
+    .promo-panel-inner {
+      min-height: 100px;
+      gap: 8px;
+    }
+    .promo-copy {
+      padding: 14px 0;
+      width: 58%;
+    }
+    .promo-price {
+      font-size: 1.05rem;
+      margin-bottom: 7px;
+    }
+    .promo-offer {
+      font-size: 0.75rem;
+      margin-bottom: 9px;
+    }
+    .promo-action {
+      font-size: 0.9rem;
+    }
+    .promo-image {
+      width: 45%;
+      min-height: 100px;
+      object-position: center;
+      clip-path: polygon(18% 0, 100% 0, 100% 100%, 0 100%);
+    }
     .uc-hero-photos { grid-template-rows: 130px 90px 70px; gap: 6px; }
     .uc-photo-1, .uc-photo-2, .uc-photo-3, .uc-photo-4 { border-radius: 12px; }
     .uc-svc-row { grid-template-columns: repeat(4, 1fr); gap: 2px; }
@@ -640,6 +721,20 @@
     </div>
   </div>
 </nav>
+
+<!-- PROMO NOTIFICATION PANEL -->
+<section class="promo-panel" aria-label="Limited time service offer">
+  <div class="container">
+    <div class="promo-panel-inner">
+      <div class="promo-copy">
+        <div class="promo-price">just ₹99 <del>₹245</del></div>
+        <div class="promo-offer">60% OFF</div>
+        <a class="promo-action" href="#services">Book now <i class="bi bi-arrow-right"></i></a>
+      </div>
+      <img class="promo-image" src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=900&q=85&fit=crop&crop=center" alt="Professional home cleaning offer">
+    </div>
+  </div>
+</section>
 
 <!-- ===== UC-STYLE HERO ===== -->
 <section class="uc-hero">
