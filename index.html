@@ -263,11 +263,15 @@
     width: 60px; height: 60px;
     border-radius: 16px;
     display: flex; align-items: center; justify-content: center;
-    font-size: 28px;
+    font-size: 26px;
+    color: var(--sky);
     background: white;
     box-shadow: 0 2px 10px rgba(0,0,0,0.08);
     position: relative;
     transition: box-shadow 0.15s;
+  }
+  .uc-svc-icon-wrap > i {
+    line-height: 1;
   }
   .uc-svc-item:hover .uc-svc-icon-wrap {
     box-shadow: 0 4px 18px rgba(26,111,168,0.15);
@@ -540,6 +544,56 @@
     .about-teaser-inner { flex-direction: column; padding: 36px 28px; }
   }
   @media (max-width: 576px) {
+    .navbar-inner {
+      height: auto;
+      flex-wrap: wrap;
+      padding: 12px 20px 10px;
+      row-gap: 10px;
+    }
+    .brand-wrap {
+      order: 1;
+      margin-right: 10px;
+    }
+    .brand-icon-uc {
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      font-size: 18px;
+    }
+    .brand-text-uc .brand-name-uc { font-size: 0.88rem; }
+    .brand-text-uc .brand-sub-uc { display: none; }
+    .uc-location-pill {
+      order: 2;
+      display: flex;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      margin-right: 8px;
+      font-size: 0.78rem;
+      max-width: 150px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .uc-location-pill span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .uc-nav-links {
+      order: 3;
+      margin-left: auto;
+    }
+    .uc-search-wrap {
+      order: 4;
+      flex: 0 0 100%;
+      max-width: none;
+      margin-right: 0;
+    }
+    .uc-search-input {
+      height: 50px;
+      border-radius: 9px;
+      font-size: 0.9rem;
+      background: white;
+    }
     .uc-hero-photos { grid-template-rows: 130px 90px 70px; gap: 6px; }
     .uc-photo-1, .uc-photo-2, .uc-photo-3, .uc-photo-4 { border-radius: 12px; }
     .uc-svc-row { grid-template-columns: repeat(4, 1fr); gap: 2px; }
@@ -603,35 +657,35 @@
           <div class="uc-service-grid-title">Book a service</div>
           <div class="uc-svc-row">
             <button class="uc-svc-item" onclick="quickBook('Toilet Cleaning', 399)">
-              <div class="uc-svc-icon-wrap">🚽<span class="uc-time-badge">Same Day</span></div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-stars"></i><span class="uc-time-badge">Same Day</span></div>
               <div class="uc-svc-name">Toilet &amp; Bath</div>
             </button>
             <button class="uc-svc-item" onclick="quickBook('Tank Wash', 499)">
-              <div class="uc-svc-icon-wrap">💧<span class="uc-time-badge">Same Day</span></div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-droplet-fill"></i><span class="uc-time-badge">Same Day</span></div>
               <div class="uc-svc-name">Tank Wash</div>
             </button>
             <button class="uc-svc-item" onclick="quickBook('AC Servicing', 499)">
-              <div class="uc-svc-icon-wrap">❄️<span class="uc-time-badge">22 mins</span></div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-snow"></i><span class="uc-time-badge">22 mins</span></div>
               <div class="uc-svc-name">AC &amp; Repair</div>
             </button>
             <button class="uc-svc-item" onclick="quickBook('Sofa Cleaning', 599)">
-              <div class="uc-svc-icon-wrap">🛋️</div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-grid-1x2-fill"></i></div>
               <div class="uc-svc-name">Sofa Clean</div>
             </button>
             <button class="uc-svc-item" onclick="quickBook('Deep Home Cleaning 2BHK', 2299)">
-              <div class="uc-svc-icon-wrap">🏠</div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-house-heart-fill"></i></div>
               <div class="uc-svc-name">Deep Clean</div>
             </button>
             <button class="uc-svc-item" onclick="quickBook('Fridge Cleaning', 99)">
-              <div class="uc-svc-icon-wrap">🧊</div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-box-seam-fill"></i></div>
               <div class="uc-svc-name">Fridge Clean</div>
             </button>
             <button class="uc-svc-item" onclick="quickBook('Kitchen Chimney Wash', 499)">
-              <div class="uc-svc-icon-wrap">🍳</div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-fire"></i></div>
               <div class="uc-svc-name">Chimney Wash</div>
             </button>
             <button class="uc-svc-item" onclick="document.getElementById('services').scrollIntoView({behavior:'smooth'})">
-              <div class="uc-svc-icon-wrap">🛡️</div>
+              <div class="uc-svc-icon-wrap"><i class="bi bi-shield-check"></i></div>
               <div class="uc-svc-name">Security</div>
             </button>
           </div>
