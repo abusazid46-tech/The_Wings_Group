@@ -829,8 +829,8 @@
         <a class="footer-link" href="about.html">About Us</a>
         <a class="footer-link" href="about.html#mvv">Mission &amp; Values</a>
         <a class="footer-link" href="#how">How it Works</a>
-        <a class="footer-link" href="#">Careers</a>
-        <a class="footer-link" href="#">T&amp;C Apply</a>
+        <a class="footer-link" href="https://wa.me/919774887803?text=Hi%20Wings%20Group%2C%20I%27d%20like%20to%20know%20about%20career%20opportunities.">Careers</a>
+        <a class="footer-link" href="#contact">T&amp;C Apply</a>
       </div>
       <div class="col-lg-4">
         <div class="footer-heading">Contact Us</div>
@@ -1024,12 +1024,23 @@ function quickBook(name, price) {
   openCart();
 }
 
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }[char]));
+}
+
 function confirmBooking() {
   const name = document.getElementById('custName').value.trim();
   const phone = document.getElementById('custPhone').value.trim();
   const address = document.getElementById('custAddress').value.trim();
   const date = document.getElementById('custDate').value;
   const time = document.getElementById('custTime').value;
+  const note = document.getElementById('custNote').value.trim();
 
   if (!name || !phone || !address || !date || !time) { alert('Please fill in all required fields.'); return; }
   if (!/^\d{10}$/.test(phone)) { alert('Enter a valid 10-digit phone number.'); return; }
@@ -1038,18 +1049,30 @@ function confirmBooking() {
   const items = Object.values(cart);
   const total = items.reduce((sum, i) => sum + i.price * i.qty, 0);
   const bookingId = 'TWG' + Date.now().toString().slice(-6);
+  const serviceSummary = items.map(i => `${i.name}${i.qty > 1 ? ` x${i.qty}` : ''}`).join(', ');
+  const whatsappMessage = [
+    `New Booking - ${bookingId}`,
+    `Name: ${name}`,
+    `Phone: ${phone}`,
+    `Address: ${address}`,
+    `Services: ${serviceSummary}`,
+    `Preferred Date & Time: ${date} ${time}`,
+    `Total (Cash on Delivery): ₹${total.toLocaleString()}`,
+    note ? `Instructions: ${note}` : ''
+  ].filter(Boolean).join('\n');
 
   document.getElementById('bookingRef').innerHTML = `
-    <b>Booking ID:</b> ${bookingId}<br>
-    <b>Name:</b> ${name}<br>
-    <b>Phone:</b> ${phone}<br>
-    <b>Services:</b> ${items.map(i => i.name).join(', ')}<br>
-    <b>Date & Time:</b> ${date} · ${time}<br>
-    <b>Total (Cash on Delivery):</b> ₹${total.toLocaleString()}
+    <b>Booking ID:</b> ${escapeHtml(bookingId)}<br>
+    <b>Name:</b> ${escapeHtml(name)}<br>
+    <b>Phone:</b> ${escapeHtml(phone)}<br>
+    <b>Services:</b> ${escapeHtml(serviceSummary)}<br>
+    <b>Date & Time:</b> ${escapeHtml(date)} · ${escapeHtml(time)}<br>
+    <b>Total (Cash on Delivery):</b> ₹${escapeHtml(total.toLocaleString())}
   `;
 
   document.getElementById('formSection').style.display = 'none';
   document.getElementById('successSection').style.display = 'flex';
+  window.open(`https://wa.me/919774887803?text=${encodeURIComponent(whatsappMessage)}`, '_blank', 'noopener');
   cart = {};
   updateCartBadge();
   renderServices();
