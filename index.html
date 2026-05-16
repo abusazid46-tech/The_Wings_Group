@@ -571,7 +571,7 @@
 
       <div class="uc-search-wrap">
         <i class="bi bi-search"></i>
-        <input type="text" class="uc-search-input" placeholder="Search for 'AC Servicing', 'Tank Cleaning'…">
+        <input type="text" class="uc-search-input" id="serviceSearchInput" placeholder="Search for 'Bathroom Cleaning'">
       </div>
 
       <div class="uc-nav-links">
@@ -941,6 +941,49 @@ const SERVICES = [
   { id: 18, cat: 'deep', icon: '🏡', name: 'Deep Home Cleaning – 3BHK', desc: '2 Bathrooms & Toilets, 1 Kitchen, 3 Living Rooms, Corridor & Fan Wash included.', price: 2699 },
 ];
 
+const SEARCH_TERMS = [
+  'Bathroom Cleaning',
+  'Sofa Cleaning',
+  'AC Repairing',
+  'Tank Cleaning',
+  'Deep Home Cleaning',
+  'Kitchen Chimney Wash'
+];
+
+function animateSearchPlaceholder() {
+  const input = document.getElementById('serviceSearchInput');
+  if (!input) return;
+
+  let termIndex = 0;
+  let charIndex = 0;
+  let deleting = false;
+  const prefix = "Search for '";
+  const suffix = "'";
+
+  function tick() {
+    const term = SEARCH_TERMS[termIndex];
+    input.placeholder = `${prefix}${term.slice(0, charIndex)}${suffix}`;
+
+    if (!deleting && charIndex === term.length) {
+      deleting = true;
+      setTimeout(tick, 1200);
+      return;
+    }
+
+    if (deleting && charIndex === 0) {
+      deleting = false;
+      termIndex = (termIndex + 1) % SEARCH_TERMS.length;
+      setTimeout(tick, 250);
+      return;
+    }
+
+    charIndex += deleting ? -1 : 1;
+    setTimeout(tick, deleting ? 45 : 85);
+  }
+
+  tick();
+}
+
 const catLabels = { toilet: 'Toilet & Bath', tank: 'Tank', ac: 'AC & Electric', sofa: 'Sofa & Appliances', deep: 'Deep Clean Package' };
 let cart = {};
 
@@ -1079,6 +1122,7 @@ function confirmBooking() {
 }
 
 renderServices();
+animateSearchPlaceholder();
 </script>
 </body>
 </html>
