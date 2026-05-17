@@ -1,7 +1,7 @@
 "use client";
 
 import { createApiClient } from "@the-wings/api-client";
-import type { Booking, BookingCreateInput } from "@the-wings/types";
+import type { Booking, BookingCreateInput, PaymentMode, RazorpayOrderResponse } from "@the-wings/types";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
@@ -9,7 +9,39 @@ import { categoryLabels, quickServices, searchTerms, services, type ServiceCateg
 type CartItem = ServiceItem & { quantity: number };
 type LocationChoice = { label: string; address: string; coords?: string };
 type SubmitStatus = "idle" | "submitting" | "success" | "offline";
+type OnlinePaymentStatus = "idle" | "creating" | "ready" | "verifying" | "paid" | "unavailable" | "failed";
 type BookingSource = "database" | "whatsapp";
+type RazorpayHandlerResponse = {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+};
+type RazorpayCheckoutOptions = {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  order_id: string;
+  prefill: {
+    name: string;
+    contact: string;
+  };
+  notes: Record<string, string>;
+  theme: {
+    color: string;
+  };
+  handler: (response: RazorpayHandlerResponse) => void | Promise<void>;
+  modal: {
+    ondismiss: () => void;
+  };
+};
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => { open: () => void };
+  }
+}
 
 const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconClass: string }> = [
   { id: "all", label: "All Services", iconClass: "bi-grid-fill" },
@@ -27,6 +59,7 @@ const initialForm = {
   city: "Agartala",
   date: "",
   time: "",
+  paymentMode: "COD" as PaymentMode,
   note: ""
 };
 
@@ -37,6 +70,7 @@ type BookingResult = {
   source: BookingSource;
   status: string;
   whatsappUrl: string;
+  paymentMode: PaymentMode;
 };
 
 type BookingHistoryItem = {
@@ -69,8 +103,11 @@ export function CustomerHome() {
   const [formErrors, setFormErrors] = useState<BookingFormErrors>({});
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [submitMessage, setSubmitMessage] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<OnlinePaymentStatus>("idle");
+  const [paymentMessage, setPaymentMessage] = useState("");
   const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
   const [bookingRef, setBookingRef] = useState<string | null>(null);
+  const [confirmedPayload, setConfirmedPayload] = useState<BookingCreateInput | null>(null);
   const [bookingHistory, setBookingHistory] = useState<BookingHistoryItem[]>([]);
 
   useEffect(() => {
@@ -168,8 +205,11 @@ export function CustomerHome() {
     setSuccess(false);
     setSubmitStatus("idle");
     setSubmitMessage("");
+    setPaymentStatus("idle");
+    setPaymentMessage("");
     setBookingResult(null);
     setBookingRef(null);
+    setConfirmedPayload(null);
     setFormErrors({});
   }
 
@@ -327,6 +367,7 @@ export function CustomerHome() {
     }
 
     const payload = createBookingPayload(normalizedForm, cartItems, total);
+    setConfirmedPayload(payload);
     setSubmitStatus("submitting");
     setSubmitMessage("Creating your booking...");
 
@@ -338,15 +379,19 @@ export function CustomerHome() {
         bookingCode: booking.bookingCode,
         source: "database",
         status: booking.status,
-        whatsappUrl
+        whatsappUrl,
+        paymentMode: payload.paymentMode
       };
 
       setBookingResult(result);
       setBookingRef(formatBookingSummary(booking.bookingCode, payload, booking.status, "database"));
       setSubmitStatus("success");
-      setSubmitMessage("Booking saved to database. WhatsApp confirmation is ready for the operations team.");
+      setSubmitMessage(
+        payload.paymentMode === "RAZORPAY"
+          ? "Booking saved. Continue to secure Razorpay payment."
+          : "Booking saved. WhatsApp confirmation is queued for the operations team."
+      );
       rememberBooking(createHistoryItem(booking, payload, "database"));
-      window.open(whatsappUrl, "_blank", "noopener");
     } catch {
       const fallbackCode = createLocalBookingCode();
       const whatsappUrl = createWhatsappUrl(fallbackCode, payload);
@@ -354,7 +399,8 @@ export function CustomerHome() {
         bookingCode: fallbackCode,
         source: "whatsapp",
         status: "PENDING_WHATSAPP",
-        whatsappUrl
+        whatsappUrl,
+        paymentMode: payload.paymentMode
       };
 
       setBookingResult(result);
@@ -368,6 +414,95 @@ export function CustomerHome() {
     setForm(normalizedForm);
     setCart({});
     setSuccess(true);
+  }
+
+  async function startOnlinePayment() {
+    if (!bookingResult || bookingResult.source !== "database") {
+      setPaymentStatus("unavailable");
+      setPaymentMessage("Online payment needs a saved database booking first.");
+      return;
+    }
+
+    setPaymentStatus("creating");
+    setPaymentMessage("Creating secure Razorpay order...");
+
+    try {
+      const orderResponse = await createApiClient().createRazorpayOrder({ bookingCode: bookingResult.bookingCode });
+      const order = orderResponse.data;
+
+      if (!order.checkoutEnabled || !order.keyId) {
+        setPaymentStatus("unavailable");
+        setPaymentMessage(order.message || "Razorpay is not configured yet. Customer can still pay after service.");
+        return;
+      }
+
+      const loaded = await loadRazorpayCheckout();
+      if (!loaded || !window.Razorpay) {
+        setPaymentStatus("failed");
+        setPaymentMessage("Unable to load Razorpay Checkout. Please check the internet connection.");
+        return;
+      }
+
+      setPaymentStatus("ready");
+      setPaymentMessage("Opening Razorpay Checkout...");
+
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        amount: order.amount,
+        currency: order.currency,
+        name: "The Wings Group",
+        description: `Booking ${order.bookingCode}`,
+        order_id: order.orderId,
+        prefill: {
+          name: form.name,
+          contact: form.phone
+        },
+        notes: {
+          bookingCode: order.bookingCode
+        },
+        theme: {
+          color: "#0a1628"
+        },
+        handler: async (response) => {
+          await verifyOnlinePayment(order, response);
+        },
+        modal: {
+          ondismiss: () => {
+            setPaymentStatus("ready");
+            setPaymentMessage("Payment window closed. You can reopen it anytime.");
+          }
+        }
+      });
+
+      checkout.open();
+    } catch {
+      setPaymentStatus("failed");
+      setPaymentMessage("Payment order could not be created. Customer can still pay after service.");
+    }
+  }
+
+  async function verifyOnlinePayment(order: RazorpayOrderResponse, response: RazorpayHandlerResponse) {
+    setPaymentStatus("verifying");
+    setPaymentMessage("Verifying payment...");
+
+    try {
+      const verified = await createApiClient().verifyRazorpayPayment({
+        bookingCode: order.bookingCode,
+        razorpayOrderId: response.razorpay_order_id,
+        razorpayPaymentId: response.razorpay_payment_id,
+        razorpaySignature: response.razorpay_signature
+      });
+
+      setPaymentStatus("paid");
+      setPaymentMessage("Payment verified successfully.");
+      setBookingResult((current) => (current ? { ...current, status: verified.data.booking.status } : current));
+      if (confirmedPayload) {
+        setBookingRef(formatBookingSummary(order.bookingCode, confirmedPayload, "Paid via Razorpay", "database"));
+      }
+    } catch {
+      setPaymentStatus("failed");
+      setPaymentMessage("Payment verification failed. Please do not mark the booking paid until admin verifies it.");
+    }
   }
 
   return (
@@ -419,11 +554,14 @@ export function CustomerHome() {
           success={success}
           submitStatus={submitStatus}
           submitMessage={submitMessage}
+          paymentStatus={paymentStatus}
+          paymentMessage={paymentMessage}
           bookingResult={bookingResult}
           bookingRef={bookingRef}
           bookingHistory={bookingHistory}
           onClose={() => setBookingModalOpen(false)}
           onSubmit={confirmBooking}
+          onPayOnline={startOnlinePayment}
           onFormChange={updateForm}
           onQuantityChange={updateCartQuantity}
           onRemove={removeService}
@@ -738,15 +876,15 @@ function CodSection() {
         <div className="row align-items-center gy-5">
           <div className="col-lg-6">
             <div className="section-label" style={{ color: "var(--gold-light)" }}>Payment Policy</div>
-            <h2 className="section-title" style={{ color: "white", marginBottom: 30 }}>Cash on Delivery —<br /><span style={{ color: "var(--gold-light)" }}>Zero Risk, Zero Advance</span></h2>
-            <p style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.75, maxWidth: 440 }}>We believe you should only pay after you&apos;re satisfied. No online payment, no UPI advance required. Just book, we show up, we clean, you pay.</p>
+            <h2 className="section-title" style={{ color: "white", marginBottom: 30 }}>Flexible Payment —<br /><span style={{ color: "var(--gold-light)" }}>COD or Secure Online</span></h2>
+            <p style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.75, maxWidth: 440 }}>Choose cash on delivery for zero advance, or pay securely online with Razorpay after your booking is created.</p>
           </div>
           <div className="col-lg-6">
             {[
-              ["bi-cash-coin", "100% Cash on Delivery", "Pay only after the service is completed at your doorstep."],
+              ["bi-cash-coin", "Cash on Delivery", "Pay only after the service is completed at your doorstep."],
+              ["bi-credit-card-2-front", "Razorpay Online Payment", "Secure online payment with server-side signature verification."],
               ["bi-calendar2-check", "Flexible Scheduling", "Book for today or plan ahead. Choose a time slot that works for you."],
-              ["bi-shield-lock", "Verified Staff", "All our team members are verified, trained, and trustworthy professionals."],
-              ["bi-recycle", "Eco-Friendly Products", "Safe cleaning agents that are suitable for families and homes."]
+              ["bi-shield-lock", "Verified Staff", "All our team members are verified, trained, and trustworthy professionals."]
             ].map(([icon, title, desc]) => (
               <div className="cod-feature" key={title}>
                 <div className="cod-icon"><i className={`bi ${icon}`} /></div>
@@ -880,11 +1018,14 @@ function BookingModal({
   success,
   submitStatus,
   submitMessage,
+  paymentStatus,
+  paymentMessage,
   bookingResult,
   bookingRef,
   bookingHistory,
   onClose,
   onSubmit,
+  onPayOnline,
   onFormChange,
   onQuantityChange,
   onRemove,
@@ -897,11 +1038,14 @@ function BookingModal({
   success: boolean;
   submitStatus: SubmitStatus;
   submitMessage: string;
+  paymentStatus: OnlinePaymentStatus;
+  paymentMessage: string;
   bookingResult: BookingResult | null;
   bookingRef: string | null;
   bookingHistory: BookingHistoryItem[];
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onPayOnline: () => void | Promise<void>;
   onFormChange: (field: keyof BookingForm, value: string) => void;
   onQuantityChange: (serviceId: number, quantity: number) => void;
   onRemove: (serviceId: number) => void;
@@ -909,7 +1053,13 @@ function BookingModal({
 }) {
   const today = getTodayInputValue();
   const isSubmitting = submitStatus === "submitting";
+  const isPaying = paymentStatus === "creating" || paymentStatus === "verifying";
   const statusText = submitStatus === "offline" ? "WhatsApp pending" : bookingResult?.status ?? "Pending";
+  const canPayOnline = bookingResult?.source === "database" && bookingResult.paymentMode === "RAZORPAY" && paymentStatus !== "paid";
+  const paymentOptions: Array<{ mode: PaymentMode; title: string; desc: string; icon: string }> = [
+    { mode: "COD", title: "Pay after service", desc: "No advance payment required.", icon: "bi-cash-coin" },
+    { mode: "RAZORPAY", title: "Pay online", desc: "Use Razorpay after booking confirmation.", icon: "bi-credit-card-2-front" }
+  ];
 
   return (
     <div className="app-modal-backdrop">
@@ -918,7 +1068,7 @@ function BookingModal({
           <div>
             <h5 className="mb-1">Book Your Service</h5>
             <div className="uc-cod-strip p-0" style={{ background: "transparent", color: "var(--gold-light)" }}>
-              <i className="bi bi-cash-coin" /> Cash on Delivery
+              <i className="bi bi-shield-check" /> COD or Secure Online Payment
             </div>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Close booking">x</button>
@@ -931,7 +1081,7 @@ function BookingModal({
                 <span className="booking-source-chip">{bookingResult?.source === "database" ? "Saved to database" : "WhatsApp backup"}</span>
                 <h4>{bookingResult?.source === "database" ? "Booking Created" : "Booking Request Captured"}</h4>
                 <p>
-                  Our team will call the customer shortly. Payment remains cash on delivery after the service is completed.
+                  Our team will call the customer shortly. Payment can be completed online now or after service, based on the selected method.
                 </p>
                 {bookingResult && (
                   <div className="booking-code-box">
@@ -941,6 +1091,13 @@ function BookingModal({
                   </div>
                 )}
                 {submitMessage && <div className="booking-submit-note">{submitMessage}</div>}
+                {canPayOnline && (
+                  <button className="btn-confirm mt-3" type="button" onClick={onPayOnline} disabled={isPaying}>
+                    {isPaying ? "Processing payment..." : "Pay Securely with Razorpay"}
+                  </button>
+                )}
+                {paymentStatus === "paid" && <div className="payment-success-note">Payment verified. Booking is confirmed.</div>}
+                {paymentMessage && <div className={`payment-status-note ${paymentStatus}`}>{paymentMessage}</div>}
                 {bookingRef && <pre className="booking-summary text-start w-100" style={{ whiteSpace: "pre-wrap" }}>{bookingRef}</pre>}
                 {bookingResult?.whatsappUrl && (
                   <a className="btn-confirm mt-3" href={bookingResult.whatsappUrl} target="_blank" rel="noreferrer">
@@ -1021,6 +1178,25 @@ function BookingModal({
                   {errors.time && <div className="field-error">{errors.time}</div>}
                 </div>
                 <div className="col-12">
+                  <label className="form-label-custom">Payment Method</label>
+                  <div className="payment-method-grid">
+                    {paymentOptions.map(({ mode, title, desc, icon }) => (
+                      <button
+                        className={`payment-method-card ${form.paymentMode === mode ? "active" : ""}`}
+                        type="button"
+                        key={mode}
+                        onClick={() => onFormChange("paymentMode", mode)}
+                      >
+                        <i className={`bi ${icon}`} />
+                        <span>
+                          <strong>{title}</strong>
+                          <small>{desc}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="col-12">
                   <label className="form-label-custom">Special Instructions</label>
                   <textarea
                     className="form-control form-control-custom"
@@ -1033,7 +1209,7 @@ function BookingModal({
               </div>
               {submitMessage && <div className="booking-submit-note">{submitMessage}</div>}
               <button className="btn-confirm mt-4 w-100" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating booking..." : "Confirm Booking - Pay on Delivery"}
+                {isSubmitting ? "Creating booking..." : form.paymentMode === "RAZORPAY" ? "Confirm Booking - Continue to Payment" : "Confirm Booking - Pay on Delivery"}
               </button>
               <BookingHistory items={bookingHistory} />
             </form>
@@ -1221,7 +1397,7 @@ function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: n
     preferredDate: form.date,
     preferredTimeSlot: form.time,
     notes: form.note || undefined,
-    paymentMode: "COD",
+    paymentMode: form.paymentMode,
     totalAmount: total,
     items: cartItems.map((item) => ({
       serviceName: item.name,
@@ -1233,6 +1409,26 @@ function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: n
 
 function createLocalBookingCode() {
   return `TWG-L-${Date.now().toString().slice(-8)}`;
+}
+
+function loadRazorpayCheckout() {
+  if (window.Razorpay) return Promise.resolve(true);
+
+  return new Promise<boolean>((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 }
 
 function getServiceSummary(items: BookingCreateInput["items"]) {
@@ -1248,7 +1444,8 @@ function createWhatsappUrl(bookingCode: string, payload: BookingCreateInput) {
     `City: ${payload.city}`,
     `Services: ${getServiceSummary(payload.items)}`,
     `Preferred Date & Time: ${payload.preferredDate} ${payload.preferredTimeSlot}`,
-    `Total COD: Rs. ${payload.totalAmount.toLocaleString()}`,
+    `Payment: ${payload.paymentMode}`,
+    `Total: Rs. ${payload.totalAmount.toLocaleString()}`,
     payload.notes ? `Instructions: ${payload.notes}` : ""
   ]
     .filter(Boolean)
@@ -1266,7 +1463,8 @@ function formatBookingSummary(bookingCode: string, payload: BookingCreateInput, 
     `Phone: ${payload.customerPhone}`,
     `Services: ${getServiceSummary(payload.items)}`,
     `Date & Time: ${payload.preferredDate} - ${payload.preferredTimeSlot}`,
-    `Total COD: Rs. ${payload.totalAmount.toLocaleString()}`
+    `Payment: ${payload.paymentMode}`,
+    `Total: Rs. ${payload.totalAmount.toLocaleString()}`
   ].join("\n");
 }
 

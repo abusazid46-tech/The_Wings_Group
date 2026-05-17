@@ -1036,6 +1036,79 @@ footer {
   font-weight: 700;
 }
 
+.payment-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.payment-method-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1.5px solid #dce5ef;
+  border-radius: 12px;
+  background: white;
+  color: var(--navy);
+  padding: 12px;
+  text-align: left;
+  font-family: inherit;
+}
+
+.payment-method-card i {
+  color: var(--sky);
+  font-size: 1.2rem;
+  margin-top: 2px;
+}
+
+.payment-method-card span {
+  display: grid;
+  gap: 3px;
+}
+
+.payment-method-card small {
+  color: var(--gray);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.payment-method-card.active {
+  border-color: var(--sky);
+  background: #eef5fb;
+}
+
+.payment-status-note,
+.payment-success-note {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
+.payment-status-note {
+  background: #eef5fb;
+  color: var(--sky);
+}
+
+.payment-status-note.failed,
+.payment-status-note.unavailable {
+  background: #fff1f0;
+  color: #b42318;
+}
+
+.payment-status-note.verifying,
+.payment-status-note.creating {
+  background: #fff7e6;
+  color: #8a6100;
+}
+
+.payment-success-note {
+  background: #eef8f2;
+  color: #16784f;
+}
+
 .booking-history {
   width: 100%;
   margin-top: 18px;
@@ -1614,6 +1687,10 @@ footer {
   .booking-item-row {
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .payment-method-grid {
+    grid-template-columns: 1fr;
   }
 
   .quantity-control {

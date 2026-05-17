@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { crmNoteCreateSchema, whatsappMessageCreateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
+import { sendWhatsAppText } from "../services/whatsapp.js";
 
 export const crmRouter = Router();
 
@@ -41,19 +42,28 @@ crmRouter.get("/whatsapp", async (_req, res, next) => {
 crmRouter.post("/whatsapp", async (req, res, next) => {
   try {
     const input = whatsappMessageCreateSchema.parse(req.body);
+    const result = await sendWhatsAppText({ phone: input.phone, message: input.message });
     const message = await prisma.whatsappMessage.create({
       data: {
         phone: input.phone,
         template: input.template,
         direction: input.direction,
-        status: input.status,
+        status: result.status === "QUEUED" ? input.status : result.status,
         payload: {
-          message: input.message
+          message: input.message,
+          providerMessageId: result.providerMessageId,
+          providerResponse: result.providerResponse ? JSON.parse(JSON.stringify(result.providerResponse)) : null,
+          providerMessage: result.message
         }
       }
     });
-    const whatsappUrl = `https://wa.me/91${input.phone}?text=${encodeURIComponent(input.message)}`;
-    res.status(201).json({ data: message, whatsappUrl });
+    res.status(201).json({
+      data: message,
+      whatsappUrl: result.whatsappUrl,
+      sent: result.sent,
+      providerMessageId: result.providerMessageId,
+      message: result.message
+    });
   } catch (error) {
     next(error);
   }

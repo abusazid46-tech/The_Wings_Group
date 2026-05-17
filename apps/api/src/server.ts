@@ -8,6 +8,7 @@ import { bookingsRouter } from "./routes/bookings.js";
 import { crmRouter } from "./routes/crm.js";
 import { healthRouter } from "./routes/health.js";
 import { leadsRouter } from "./routes/leads.js";
+import { paymentsRouter } from "./routes/payments.js";
 import { servicesRouter } from "./routes/services.js";
 
 const app = express();
@@ -25,6 +26,7 @@ app.use("/health", healthRouter);
 app.use("/admin", adminRouter);
 app.use("/services", servicesRouter);
 app.use("/bookings", bookingsRouter);
+app.use("/payments", paymentsRouter);
 app.use("/leads", leadsRouter);
 app.use("/crm", crmRouter);
 

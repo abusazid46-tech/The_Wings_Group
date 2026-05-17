@@ -109,7 +109,8 @@ const fallbackBookings: Booking[] = [
     totalAmount: 2299,
     createdAt: "2026-05-17T03:20:00.000Z",
     updatedAt: "2026-05-17T03:20:00.000Z",
-    items: [{ id: "bki-1", serviceName: "Deep Home Cleaning - 2BHK", quantity: 1, unitPrice: 2299, lineTotal: 2299 }]
+    items: [{ id: "bki-1", serviceName: "Deep Home Cleaning - 2BHK", quantity: 1, unitPrice: 2299, lineTotal: 2299 }],
+    payments: []
   },
   {
     id: "bk-2",
@@ -126,7 +127,8 @@ const fallbackBookings: Booking[] = [
     totalAmount: 499,
     createdAt: "2026-05-17T04:15:00.000Z",
     updatedAt: "2026-05-17T04:15:00.000Z",
-    items: [{ id: "bki-2", serviceName: "AC Regular Servicing", quantity: 1, unitPrice: 499, lineTotal: 499 }]
+    items: [{ id: "bki-2", serviceName: "AC Regular Servicing", quantity: 1, unitPrice: 499, lineTotal: 499 }],
+    payments: []
   }
 ];
 
@@ -756,11 +758,14 @@ function BookingTable({
         <span>Customer</span>
         <span>Service</span>
         <span>Status</span>
+        <span>Payment</span>
         <span>Total</span>
         <span>Action</span>
       </div>
       {bookings.map((booking) => {
         const serviceSummary = booking.items.map((item) => item.serviceName).join(", ") || "Service booking";
+        const paidPayment = booking.payments?.find((payment) => payment.status === "PAID");
+        const paymentLabel = paidPayment ? "PAID" : booking.paymentMode;
         return (
           <div className="table-row" key={booking.bookingCode}>
             <strong>{booking.bookingCode}</strong>
@@ -769,6 +774,7 @@ function BookingTable({
             <select value={booking.status} onChange={(event) => onStatusChange(booking, event.target.value as BookingStatus)}>
               {bookingStatuses.map((status) => <option key={status}>{status}</option>)}
             </select>
+            <span className={`payment-pill ${paymentLabel.toLowerCase()}`}>{paymentLabel}</span>
             <strong>Rs. {booking.totalAmount.toLocaleString()}</strong>
             <button type="button" onClick={() => onWhatsapp(booking.customerPhone, `Hi ${booking.customerName}, your booking ${booking.bookingCode} is ${booking.status}.`)}>
               WhatsApp

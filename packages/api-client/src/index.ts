@@ -9,12 +9,16 @@ import type {
   Lead,
   LeadCreateInput,
   LeadUpdateInput,
+  RazorpayOrderCreateInput,
+  RazorpayOrderResponse,
+  RazorpayVerifyInput,
+  RazorpayVerifyResponse,
   Service,
   ServiceCategory,
   ServiceCreateInput,
   ServiceUpdateInput,
-  WhatsappMessage,
-  WhatsappMessageCreateInput
+  WhatsappMessageCreateInput,
+  WhatsappSendResponse
 } from "@the-wings/types";
 
 type ApiClientOptions = {
@@ -69,6 +73,20 @@ export class ApiClient {
 
   async getBooking(bookingCode: string) {
     return this.request<{ data: Booking }>(`/bookings/${encodeURIComponent(bookingCode)}`);
+  }
+
+  async createRazorpayOrder(input: RazorpayOrderCreateInput) {
+    return this.request<{ data: RazorpayOrderResponse }>("/payments/razorpay/order", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async verifyRazorpayPayment(input: RazorpayVerifyInput) {
+    return this.request<{ data: RazorpayVerifyResponse }>("/payments/razorpay/verify", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
   }
 
   async getBookings() {
@@ -126,7 +144,7 @@ export class ApiClient {
   }
 
   async logWhatsappMessage(input: WhatsappMessageCreateInput) {
-    return this.request<{ data: WhatsappMessage; whatsappUrl: string }>("/crm/whatsapp", {
+    return this.request<WhatsappSendResponse>("/crm/whatsapp", {
       method: "POST",
       body: JSON.stringify(input)
     });

@@ -72,6 +72,17 @@ export const whatsappMessageCreateSchema = z.object({
   message: z.string().min(1)
 });
 
+export const razorpayOrderCreateSchema = z.object({
+  bookingCode: z.string().min(4)
+});
+
+export const razorpayVerifySchema = z.object({
+  bookingCode: z.string().min(4),
+  razorpayOrderId: z.string().min(4),
+  razorpayPaymentId: z.string().min(4),
+  razorpaySignature: z.string().min(10)
+});
+
 export type ServiceCreateInput = z.infer<typeof serviceCreateSchema>;
 export type ServiceUpdateInput = z.infer<typeof serviceUpdateSchema>;
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>;
@@ -80,3 +91,5 @@ export type LeadCreateInput = z.infer<typeof leadCreateSchema>;
 export type LeadUpdateInput = z.infer<typeof leadUpdateSchema>;
 export type CrmNoteCreateInput = z.infer<typeof crmNoteCreateSchema>;
 export type WhatsappMessageCreateInput = z.infer<typeof whatsappMessageCreateSchema>;
+export type RazorpayOrderCreateInput = z.infer<typeof razorpayOrderCreateSchema>;
+export type RazorpayVerifyInput = z.infer<typeof razorpayVerifySchema>;

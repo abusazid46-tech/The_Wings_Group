@@ -286,7 +286,7 @@ h2 {
 
 .booking-table .table-head,
 .booking-table .table-row {
-  grid-template-columns: 1fr 1.15fr 1.5fr 150px 100px 104px;
+  grid-template-columns: 1fr 1.1fr 1.35fr 145px 95px 100px 104px;
 }
 
 .customer-table .table-head,
@@ -350,6 +350,27 @@ textarea {
   padding: 5px 9px;
   font-size: 0.74rem;
   font-weight: 850;
+  background: #eef5fb;
+  color: var(--sky);
+}
+
+.payment-pill {
+  display: inline-flex;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.74rem;
+  font-weight: 850;
+  background: #fff7e6;
+  color: #8a6100;
+}
+
+.payment-pill.paid {
+  background: #eef8f2;
+  color: var(--green);
+}
+
+.payment-pill.razorpay {
   background: #eef5fb;
   color: var(--sky);
 }

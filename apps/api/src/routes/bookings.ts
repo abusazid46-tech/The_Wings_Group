@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { bookingCreateSchema, bookingStatusUpdateSchema } from "@the-wings/validation";
+import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
+import { sendWhatsAppText } from "../services/whatsapp.js";
 
 export const bookingsRouter = Router();
 
@@ -32,7 +34,8 @@ bookingsRouter.get("/:bookingCode", async (req, res, next) => {
     const booking = await prisma.booking.findUnique({
       where: { bookingCode: req.params.bookingCode },
       include: {
-        items: true
+        items: true,
+        payments: true
       }
     });
 
@@ -110,6 +113,32 @@ bookingsRouter.post("/", async (req, res, next) => {
         statusLogs: true
       }
     });
+    const customerMessage = [
+      `Hi ${booking.customerName}, your Wings Group booking ${booking.bookingCode} has been received.`,
+      `Service: ${booking.items.map((item) => item.serviceName).join(", ")}`,
+      `Date: ${input.preferredDate} ${booking.preferredTimeSlot}`,
+      `Total: Rs. ${booking.totalAmount.toLocaleString()}`,
+      "Our team will contact you shortly."
+    ].join("\n");
+
+    sendWhatsAppText({ phone: booking.customerPhone, message: customerMessage }).catch((error) => {
+      console.error("Customer WhatsApp notification failed", error);
+    });
+
+    if (env.WHATSAPP_ADMIN_PHONE) {
+      const adminMessage = [
+        `New booking ${booking.bookingCode}`,
+        `Customer: ${booking.customerName} (${booking.customerPhone})`,
+        `Services: ${booking.items.map((item) => item.serviceName).join(", ")}`,
+        `Address: ${booking.addressLine}, ${booking.city}`,
+        `Payment: ${booking.paymentMode} - Rs. ${booking.totalAmount.toLocaleString()}`
+      ].join("\n");
+
+      sendWhatsAppText({ phone: env.WHATSAPP_ADMIN_PHONE, message: adminMessage }).catch((error) => {
+        console.error("Admin WhatsApp notification failed", error);
+      });
+    }
+
     res.status(201).json({ data: booking });
   } catch (error) {
     next(error);

@@ -58,6 +58,20 @@ export type BookingCreateInput = {
   items: BookingItemInput[];
 };
 
+export type Payment = {
+  id: string;
+  bookingId: string;
+  provider: string;
+  providerOrderId?: string | null;
+  providerPaymentId?: string | null;
+  amount: number;
+  currency: string;
+  status: PaymentStatus;
+  rawPayload?: unknown;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type BookingStatusUpdateInput = {
   status: BookingStatus;
   note?: string;
@@ -89,6 +103,35 @@ export type Booking = {
   createdAt: string;
   updatedAt: string;
   items: BookingItem[];
+  payments?: Payment[];
+};
+
+export type RazorpayOrderCreateInput = {
+  bookingCode: string;
+};
+
+export type RazorpayOrderResponse = {
+  bookingCode: string;
+  paymentId?: string;
+  provider: "RAZORPAY";
+  keyId?: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  checkoutEnabled: boolean;
+  message: string;
+};
+
+export type RazorpayVerifyInput = {
+  bookingCode: string;
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+};
+
+export type RazorpayVerifyResponse = {
+  booking: Booking;
+  payment: Payment;
 };
 
 export type ServiceCreateInput = {
@@ -158,6 +201,14 @@ export type WhatsappMessageCreateInput = {
   template?: string;
   direction?: "OUTBOUND" | "INBOUND";
   status?: string;
+  message: string;
+};
+
+export type WhatsappSendResponse = {
+  data: WhatsappMessage;
+  whatsappUrl: string;
+  sent: boolean;
+  providerMessageId?: string;
   message: string;
 };
 
