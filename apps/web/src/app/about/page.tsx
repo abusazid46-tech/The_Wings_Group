@@ -1,5 +1,5 @@
-import { LegacyPage } from "@/lib/legacy-page";
+import { AboutContent } from "@/components/AboutContent";
 
 export default function AboutPage() {
-  return <LegacyPage fileName="about.html" />;
+  return <AboutContent />;
 }

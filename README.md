@@ -4,7 +4,7 @@ Full-stack monorepo for The Wings Group cleaning and facility-services platform.
 
 ## Apps
 
-- `apps/web` - Next.js customer website. It currently renders the exact approved static UI from `apps/web/src/legacy`.
+- `apps/web` - Next.js customer website built with native React components.
 - `apps/admin` - Next.js admin CRM/dashboard shell for bookings, services, customers, leads, and payments.
 - `apps/api` - Express + Prisma backend foundation.
 - `apps/mobile` - Expo React Native mobile app foundation.
@@ -21,7 +21,7 @@ Full-stack monorepo for The Wings Group cleaning and facility-services platform.
 Completed foundation:
 
 - Monorepo structure with pnpm workspaces and Turborepo.
-- Customer website converted to Next.js while preserving the current UI.
+- Customer website converted to native Next.js/React components while preserving the approved UI direction.
 - Admin dashboard UI shell.
 - Expo mobile app shell.
 - Backend API app with health, services, and bookings routes.
