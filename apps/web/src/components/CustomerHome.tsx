@@ -1,11 +1,15 @@
 "use client";
 
+import { createApiClient } from "@the-wings/api-client";
+import type { Booking, BookingCreateInput } from "@the-wings/types";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
 type LocationChoice = { label: string; address: string; coords?: string };
+type SubmitStatus = "idle" | "submitting" | "success" | "offline";
+type BookingSource = "database" | "whatsapp";
 
 const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconClass: string }> = [
   { id: "all", label: "All Services", iconClass: "bi-grid-fill" },
@@ -20,10 +24,33 @@ const initialForm = {
   name: "",
   phone: "",
   address: "",
+  city: "Agartala",
   date: "",
   time: "",
   note: ""
 };
+
+type BookingForm = typeof initialForm;
+type BookingFormErrors = Partial<Record<keyof BookingForm | "cart", string>>;
+type BookingResult = {
+  bookingCode: string;
+  source: BookingSource;
+  status: string;
+  whatsappUrl: string;
+};
+
+type BookingHistoryItem = {
+  bookingCode: string;
+  serviceSummary: string;
+  total: number;
+  preferredDate: string;
+  preferredTimeSlot: string;
+  status: string;
+  source: BookingSource;
+  createdAt: string;
+};
+
+const bookingHistoryKey = "twg_customer_bookings";
 
 export function CustomerHome() {
   const [placeholder, setPlaceholder] = useState("Search for 'Bathroom Cleaning'");
@@ -31,6 +58,7 @@ export function CustomerHome() {
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [success, setSuccess] = useState(false);
   const [locationStatus, setLocationStatus] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState<LocationChoice>({
     label: "Agartala, Tripura",
     address: "Agartala, Tripura"
@@ -38,7 +66,12 @@ export function CustomerHome() {
   const [category, setCategory] = useState<"all" | ServiceCategoryId>("all");
   const [cart, setCart] = useState<Record<number, CartItem>>({});
   const [form, setForm] = useState(initialForm);
+  const [formErrors, setFormErrors] = useState<BookingFormErrors>({});
+  const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [bookingResult, setBookingResult] = useState<BookingResult | null>(null);
   const [bookingRef, setBookingRef] = useState<string | null>(null);
+  const [bookingHistory, setBookingHistory] = useState<BookingHistoryItem[]>([]);
 
   useEffect(() => {
     let termIndex = 0;
@@ -71,13 +104,32 @@ export function CustomerHome() {
     return () => clearTimeout(timeout);
   }, []);
 
-  const filteredServices = useMemo(
-    () => (category === "all" ? services : services.filter((service) => service.category === category)),
-    [category]
-  );
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(bookingHistoryKey);
+      if (stored) setBookingHistory(JSON.parse(stored) as BookingHistoryItem[]);
+    } catch {
+      setBookingHistory([]);
+    }
+  }, []);
+
+  const filteredServices = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return services.filter((service) => {
+      const matchesCategory = category === "all" || service.category === category;
+      const matchesSearch =
+        !query ||
+        service.name.toLowerCase().includes(query) ||
+        service.description.toLowerCase().includes(query) ||
+        categoryLabels[service.category].toLowerCase().includes(query);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [category, searchQuery]);
 
   const cartItems = Object.values(cart);
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
 
   function addService(service: ServiceItem) {
     setCart((current) => {
@@ -87,6 +139,47 @@ export function CustomerHome() {
         [service.id]: existing ? { ...existing, quantity: existing.quantity + 1 } : { ...service, quantity: 1 }
       };
     });
+    setFormErrors((current) => ({ ...current, cart: undefined }));
+  }
+
+  function updateCartQuantity(serviceId: number, quantity: number) {
+    setCart((current) => {
+      const existing = current[serviceId];
+      if (!existing) return current;
+
+      if (quantity <= 0) {
+        const next = { ...current };
+        delete next[serviceId];
+        return next;
+      }
+
+      return {
+        ...current,
+        [serviceId]: { ...existing, quantity }
+      };
+    });
+  }
+
+  function removeService(serviceId: number) {
+    updateCartQuantity(serviceId, 0);
+  }
+
+  function resetBookingState() {
+    setSuccess(false);
+    setSubmitStatus("idle");
+    setSubmitMessage("");
+    setBookingResult(null);
+    setBookingRef(null);
+    setFormErrors({});
+  }
+
+  function prepareBookingForm() {
+    setForm((current) => ({
+      ...current,
+      address: current.address || location.address,
+      city: current.city || "Agartala",
+      date: current.date || getTodayInputValue()
+    }));
   }
 
   function quickBook(query: string, fallbackPrice: number, scrollOnly?: boolean) {
@@ -107,13 +200,32 @@ export function CustomerHome() {
       } satisfies ServiceItem);
 
     setCart({ [service.id]: { ...service, quantity: 1 } });
-    setSuccess(false);
+    resetBookingState();
+    prepareBookingForm();
     setBookingModalOpen(true);
   }
 
   function openCart() {
-    setSuccess(false);
+    resetBookingState();
+    prepareBookingForm();
     setBookingModalOpen(true);
+  }
+
+  function updateForm(field: keyof BookingForm, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setFormErrors((current) => ({ ...current, [field]: undefined }));
+  }
+
+  function rememberBooking(entry: BookingHistoryItem) {
+    setBookingHistory((current) => {
+      const next = [entry, ...current.filter((item) => item.bookingCode !== entry.bookingCode)].slice(0, 5);
+      try {
+        window.localStorage.setItem(bookingHistoryKey, JSON.stringify(next));
+      } catch {
+        // Local history is optional; booking submission should not fail because of storage settings.
+      }
+      return next;
+    });
   }
 
   function selectLocation(choice: LocationChoice) {
@@ -147,7 +259,7 @@ export function CustomerHome() {
     );
   }
 
-  function confirmBooking(event: FormEvent<HTMLFormElement>) {
+  function legacyConfirmBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!form.name || !form.phone || !form.address || !form.date || !form.time) {
@@ -195,23 +307,99 @@ export function CustomerHome() {
     setCart({});
   }
 
+  async function confirmBooking(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const normalizedForm: BookingForm = {
+      ...form,
+      name: form.name.trim(),
+      phone: form.phone.trim(),
+      address: form.address.trim(),
+      city: form.city.trim() || "Agartala",
+      date: form.date || getTodayInputValue(),
+      note: form.note.trim()
+    };
+    const errors = validateBookingForm(normalizedForm, cartItems);
+    setFormErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    const payload = createBookingPayload(normalizedForm, cartItems, total);
+    setSubmitStatus("submitting");
+    setSubmitMessage("Creating your booking...");
+
+    try {
+      const response = await createApiClient().createBooking(payload);
+      const booking = response.data;
+      const whatsappUrl = createWhatsappUrl(booking.bookingCode, payload);
+      const result: BookingResult = {
+        bookingCode: booking.bookingCode,
+        source: "database",
+        status: booking.status,
+        whatsappUrl
+      };
+
+      setBookingResult(result);
+      setBookingRef(formatBookingSummary(booking.bookingCode, payload, booking.status, "database"));
+      setSubmitStatus("success");
+      setSubmitMessage("Booking saved to database. WhatsApp confirmation is ready for the operations team.");
+      rememberBooking(createHistoryItem(booking, payload, "database"));
+      window.open(whatsappUrl, "_blank", "noopener");
+    } catch {
+      const fallbackCode = createLocalBookingCode();
+      const whatsappUrl = createWhatsappUrl(fallbackCode, payload);
+      const result: BookingResult = {
+        bookingCode: fallbackCode,
+        source: "whatsapp",
+        status: "PENDING_WHATSAPP",
+        whatsappUrl
+      };
+
+      setBookingResult(result);
+      setBookingRef(formatBookingSummary(fallbackCode, payload, "Pending WhatsApp confirmation", "whatsapp"));
+      setSubmitStatus("offline");
+      setSubmitMessage("API is not connected yet, so this request is saved in this browser and sent through WhatsApp.");
+      rememberBooking(createHistoryItemFromPayload(fallbackCode, payload, "whatsapp"));
+      window.open(whatsappUrl, "_blank", "noopener");
+    }
+
+    setForm(normalizedForm);
+    setCart({});
+    setSuccess(true);
+  }
+
   return (
     <>
       <Navbar
         placeholder={placeholder}
         location={location}
-        cartCount={cartItems.length}
+        searchQuery={searchQuery}
+        cartCount={cartCount}
+        onSearchChange={setSearchQuery}
         onOpenCart={openCart}
         onOpenLocation={() => setLocationModalOpen(true)}
       />
       <PromoPanel />
       <Hero onQuickBook={quickBook} />
       <TrustBar />
-      <ServicesSection category={category} onCategoryChange={setCategory} services={filteredServices} cart={cart} onAdd={addService} />
+      <ServicesSection
+        category={category}
+        searchQuery={searchQuery}
+        onCategoryChange={setCategory}
+        services={filteredServices}
+        cart={cart}
+        onAdd={addService}
+        onClearSearch={() => setSearchQuery("")}
+      />
       <HowItWorks />
       <AboutTeaser />
       <CodSection />
       <SiteFooter />
+      {cartItems.length > 0 && !bookingModalOpen && (
+        <CheckoutBar cartCount={cartCount} total={total} onOpenCart={openCart} />
+      )}
 
       {locationModalOpen && (
         <LocationModal
@@ -227,11 +415,19 @@ export function CustomerHome() {
           cartItems={cartItems}
           total={total}
           form={form}
+          errors={formErrors}
           success={success}
+          submitStatus={submitStatus}
+          submitMessage={submitMessage}
+          bookingResult={bookingResult}
           bookingRef={bookingRef}
+          bookingHistory={bookingHistory}
           onClose={() => setBookingModalOpen(false)}
           onSubmit={confirmBooking}
-          onFormChange={(field, value) => setForm((current) => ({ ...current, [field]: value }))}
+          onFormChange={updateForm}
+          onQuantityChange={updateCartQuantity}
+          onRemove={removeService}
+          onClearCart={() => setCart({})}
         />
       )}
     </>
@@ -241,13 +437,17 @@ export function CustomerHome() {
 function Navbar({
   placeholder,
   location,
+  searchQuery,
   cartCount,
+  onSearchChange,
   onOpenCart,
   onOpenLocation
 }: {
   placeholder: string;
   location: LocationChoice;
+  searchQuery: string;
   cartCount: number;
+  onSearchChange: (value: string) => void;
   onOpenCart: () => void;
   onOpenLocation: () => void;
 }) {
@@ -274,7 +474,17 @@ function Navbar({
 
           <div className="uc-search-wrap">
             <i className="bi bi-search" />
-            <input type="text" className="uc-search-input" placeholder={placeholder} aria-label="Search services" />
+            <input
+              type="text"
+              className="uc-search-input"
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
+              }}
+              placeholder={placeholder}
+              aria-label="Search services"
+            />
           </div>
 
           <div className="uc-nav-links">
@@ -409,16 +619,20 @@ function TrustBar() {
 
 function ServicesSection({
   category,
+  searchQuery,
   onCategoryChange,
   services: visibleServices,
   cart,
-  onAdd
+  onAdd,
+  onClearSearch
 }: {
   category: "all" | ServiceCategoryId;
+  searchQuery: string;
   onCategoryChange: (category: "all" | ServiceCategoryId) => void;
   services: ServiceItem[];
   cart: Record<number, CartItem>;
   onAdd: (service: ServiceItem) => void;
+  onClearSearch: () => void;
 }) {
   return (
     <section className="services-section" id="services">
@@ -435,7 +649,16 @@ function ServicesSection({
           ))}
         </div>
         <div className="row g-4">
-          {visibleServices.map((service) => (
+          {visibleServices.length === 0 ? (
+            <div className="col-12">
+              <div className="empty-service-state">
+                <i className="bi bi-search" />
+                <strong>No matching services found</strong>
+                <span>Try another search or browse all services.</span>
+                {searchQuery && <button type="button" onClick={onClearSearch}>Clear search</button>}
+              </div>
+            </div>
+          ) : visibleServices.map((service) => (
             <div className="col-sm-6 col-lg-4" key={service.id}>
               <div className="service-card">
                 <div className="card-icon-wrap">
@@ -579,6 +802,20 @@ export function SiteFooter() {
   );
 }
 
+function CheckoutBar({ cartCount, total, onOpenCart }: { cartCount: number; total: number; onOpenCart: () => void }) {
+  return (
+    <div className="checkout-bar" role="status">
+      <div>
+        <strong>{cartCount} service{cartCount === 1 ? "" : "s"} selected</strong>
+        <span>Pay after service completion</span>
+      </div>
+      <button type="button" onClick={onOpenCart}>
+        Review booking <span>Rs. {total.toLocaleString()}</span>
+      </button>
+    </div>
+  );
+}
+
 function LocationModal({
   status,
   onClose,
@@ -636,6 +873,200 @@ function LocationModal({
 }
 
 function BookingModal({
+  cartItems,
+  total,
+  form,
+  errors,
+  success,
+  submitStatus,
+  submitMessage,
+  bookingResult,
+  bookingRef,
+  bookingHistory,
+  onClose,
+  onSubmit,
+  onFormChange,
+  onQuantityChange,
+  onRemove,
+  onClearCart
+}: {
+  cartItems: CartItem[];
+  total: number;
+  form: BookingForm;
+  errors: BookingFormErrors;
+  success: boolean;
+  submitStatus: SubmitStatus;
+  submitMessage: string;
+  bookingResult: BookingResult | null;
+  bookingRef: string | null;
+  bookingHistory: BookingHistoryItem[];
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  onFormChange: (field: keyof BookingForm, value: string) => void;
+  onQuantityChange: (serviceId: number, quantity: number) => void;
+  onRemove: (serviceId: number) => void;
+  onClearCart: () => void;
+}) {
+  const today = getTodayInputValue();
+  const isSubmitting = submitStatus === "submitting";
+  const statusText = submitStatus === "offline" ? "WhatsApp pending" : bookingResult?.status ?? "Pending";
+
+  return (
+    <div className="app-modal-backdrop">
+      <div className="app-modal booking-modal-v2">
+        <div className="modal-header-custom d-flex justify-content-between align-items-start">
+          <div>
+            <h5 className="mb-1">Book Your Service</h5>
+            <div className="uc-cod-strip p-0" style={{ background: "transparent", color: "var(--gold-light)" }}>
+              <i className="bi bi-cash-coin" /> Cash on Delivery
+            </div>
+          </div>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close booking">x</button>
+        </div>
+        <div className="modal-body">
+          {success ? (
+            <div className="success-overlay">
+              <div className={`booking-status-card ${submitStatus}`}>
+                <div className="success-icon"><i className="bi bi-check2-circle" /></div>
+                <span className="booking-source-chip">{bookingResult?.source === "database" ? "Saved to database" : "WhatsApp backup"}</span>
+                <h4>{bookingResult?.source === "database" ? "Booking Created" : "Booking Request Captured"}</h4>
+                <p>
+                  Our team will call the customer shortly. Payment remains cash on delivery after the service is completed.
+                </p>
+                {bookingResult && (
+                  <div className="booking-code-box">
+                    <span>Booking ID</span>
+                    <strong>{bookingResult.bookingCode}</strong>
+                    <small>Status: {statusText}</small>
+                  </div>
+                )}
+                {submitMessage && <div className="booking-submit-note">{submitMessage}</div>}
+                {bookingRef && <pre className="booking-summary text-start w-100" style={{ whiteSpace: "pre-wrap" }}>{bookingRef}</pre>}
+                {bookingResult?.whatsappUrl && (
+                  <a className="btn-confirm mt-3" href={bookingResult.whatsappUrl} target="_blank" rel="noreferrer">
+                    Send on WhatsApp
+                  </a>
+                )}
+                <button className="btn-confirm secondary mt-2" type="button" onClick={onClose}>Done</button>
+              </div>
+              <BookingHistory items={bookingHistory} />
+            </div>
+          ) : (
+            <form onSubmit={onSubmit}>
+              <div className="booking-summary">
+                <div className="booking-summary-head">
+                  <strong>Your Services</strong>
+                  {cartItems.length > 0 && <button type="button" onClick={onClearCart}>Clear cart</button>}
+                </div>
+                {cartItems.length === 0 ? (
+                  <div className="empty-cart-note">No services added yet. Close and pick services.</div>
+                ) : (
+                  <>
+                    {cartItems.map((item) => (
+                      <div className="booking-item-row" key={item.id}>
+                        <div>
+                          <strong>{item.name}</strong>
+                          <span>Rs. {item.price.toLocaleString()} per visit</span>
+                        </div>
+                        <div className="quantity-control">
+                          <button type="button" onClick={() => onQuantityChange(item.id, item.quantity - 1)} aria-label={`Reduce ${item.name}`}>
+                            <i className="bi bi-dash" />
+                          </button>
+                          <span>{item.quantity}</span>
+                          <button type="button" onClick={() => onQuantityChange(item.id, item.quantity + 1)} aria-label={`Add ${item.name}`}>
+                            <i className="bi bi-plus" />
+                          </button>
+                          <button className="remove-line" type="button" onClick={() => onRemove(item.id)} aria-label={`Remove ${item.name}`}>
+                            <i className="bi bi-x" />
+                          </button>
+                        </div>
+                        <strong>Rs. {(item.price * item.quantity).toLocaleString()}</strong>
+                      </div>
+                    ))}
+                    <div className="booking-total-row"><span>Total payable after service</span><strong>Rs. {total.toLocaleString()}</strong></div>
+                  </>
+                )}
+                {errors.cart && <div className="field-error">{errors.cart}</div>}
+              </div>
+              <div className="row g-3">
+                <Field label="Full Name *" value={form.name} onChange={(value) => onFormChange("name", value)} placeholder="Customer full name" error={errors.name} />
+                <Field label="Phone Number *" value={form.phone} onChange={(value) => onFormChange("phone", value)} placeholder="10-digit mobile number" type="tel" error={errors.phone} />
+                <div className="col-12">
+                  <label className="form-label-custom">Address *</label>
+                  <textarea
+                    className={`form-control form-control-custom ${errors.address ? "is-invalid-lite" : ""}`}
+                    value={form.address}
+                    onChange={(event) => onFormChange("address", event.target.value)}
+                    rows={2}
+                    placeholder="Full address with landmark"
+                  />
+                  {errors.address && <div className="field-error">{errors.address}</div>}
+                </div>
+                <Field label="City *" value={form.city} onChange={(value) => onFormChange("city", value)} placeholder="Agartala" error={errors.city} />
+                <Field label="Preferred Date *" value={form.date} onChange={(value) => onFormChange("date", value)} type="date" min={today} error={errors.date} />
+                <div className="col-md-6">
+                  <label className="form-label-custom">Preferred Time *</label>
+                  <select
+                    className={`form-control form-control-custom ${errors.time ? "is-invalid-lite" : ""}`}
+                    value={form.time}
+                    onChange={(event) => onFormChange("time", event.target.value)}
+                  >
+                    <option value="">Select time slot</option>
+                    <option>9:00 AM - 11:00 AM</option>
+                    <option>11:00 AM - 1:00 PM</option>
+                    <option>1:00 PM - 3:00 PM</option>
+                    <option>3:00 PM - 5:00 PM</option>
+                    <option>5:00 PM - 7:00 PM</option>
+                  </select>
+                  {errors.time && <div className="field-error">{errors.time}</div>}
+                </div>
+                <div className="col-12">
+                  <label className="form-label-custom">Special Instructions</label>
+                  <textarea
+                    className="form-control form-control-custom"
+                    value={form.note}
+                    onChange={(event) => onFormChange("note", event.target.value)}
+                    rows={1}
+                    placeholder="Any specific requirements..."
+                  />
+                </div>
+              </div>
+              {submitMessage && <div className="booking-submit-note">{submitMessage}</div>}
+              <button className="btn-confirm mt-4 w-100" type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating booking..." : "Confirm Booking - Pay on Delivery"}
+              </button>
+              <BookingHistory items={bookingHistory} />
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BookingHistory({ items }: { items: BookingHistoryItem[] }) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="booking-history">
+      <div className="booking-history-title">Recent bookings on this device</div>
+      {items.map((item) => (
+        <div className="booking-history-row" key={item.bookingCode}>
+          <div>
+            <strong>{item.bookingCode}</strong>
+            <span>{item.serviceSummary}</span>
+          </div>
+          <div>
+            <strong>Rs. {item.total.toLocaleString()}</strong>
+            <span>{item.status}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LegacyBookingModal({
   cartItems,
   total,
   form,
@@ -734,7 +1165,8 @@ function Field({
   onChange,
   placeholder,
   type = "text",
-  min
+  min,
+  error
 }: {
   label: string;
   value: string;
@@ -742,11 +1174,124 @@ function Field({
   placeholder?: string;
   type?: string;
   min?: string;
+  error?: string;
 }) {
   return (
     <div className="col-md-6">
       <label className="form-label-custom">{label}</label>
-      <input className="form-control form-control-custom" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} type={type} min={min} />
+      <input
+        className={`form-control form-control-custom ${error ? "is-invalid-lite" : ""}`}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        type={type}
+        min={min}
+      />
+      {error && <div className="field-error">{error}</div>}
     </div>
   );
+}
+
+function getTodayInputValue() {
+  return new Date().toISOString().split("T")[0] ?? "";
+}
+
+function validateBookingForm(form: BookingForm, cartItems: CartItem[]) {
+  const errors: BookingFormErrors = {};
+  const today = getTodayInputValue();
+
+  if (!form.name || form.name.length < 2) errors.name = "Enter the customer name.";
+  if (!/^[6-9]\d{9}$/.test(form.phone)) errors.phone = "Enter a valid 10-digit Indian mobile number.";
+  if (!form.address || form.address.length < 8) errors.address = "Enter the full address with landmark.";
+  if (!form.city || form.city.length < 2) errors.city = "Enter the service city.";
+  if (!form.date) errors.date = "Choose a service date.";
+  if (form.date && form.date < today) errors.date = "Choose today or a future date.";
+  if (!form.time) errors.time = "Choose a preferred time slot.";
+  if (cartItems.length === 0) errors.cart = "Add at least one service before confirming.";
+
+  return errors;
+}
+
+function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: number): BookingCreateInput {
+  return {
+    customerName: form.name,
+    customerPhone: form.phone,
+    addressLine: form.address,
+    city: form.city,
+    preferredDate: form.date,
+    preferredTimeSlot: form.time,
+    notes: form.note || undefined,
+    paymentMode: "COD",
+    totalAmount: total,
+    items: cartItems.map((item) => ({
+      serviceName: item.name,
+      quantity: item.quantity,
+      unitPrice: item.price
+    }))
+  };
+}
+
+function createLocalBookingCode() {
+  return `TWG-L-${Date.now().toString().slice(-8)}`;
+}
+
+function getServiceSummary(items: BookingCreateInput["items"]) {
+  return items.map((item) => `${item.serviceName}${item.quantity > 1 ? ` x${item.quantity}` : ""}`).join(", ");
+}
+
+function createWhatsappUrl(bookingCode: string, payload: BookingCreateInput) {
+  const message = [
+    `New Booking - ${bookingCode}`,
+    `Name: ${payload.customerName}`,
+    `Phone: ${payload.customerPhone}`,
+    `Address: ${payload.addressLine}`,
+    `City: ${payload.city}`,
+    `Services: ${getServiceSummary(payload.items)}`,
+    `Preferred Date & Time: ${payload.preferredDate} ${payload.preferredTimeSlot}`,
+    `Total COD: Rs. ${payload.totalAmount.toLocaleString()}`,
+    payload.notes ? `Instructions: ${payload.notes}` : ""
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return `https://wa.me/919774887803?text=${encodeURIComponent(message)}`;
+}
+
+function formatBookingSummary(bookingCode: string, payload: BookingCreateInput, status: string, source: BookingSource) {
+  return [
+    `Booking ID: ${bookingCode}`,
+    `Status: ${status}`,
+    `Source: ${source === "database" ? "Database + WhatsApp" : "WhatsApp backup"}`,
+    `Name: ${payload.customerName}`,
+    `Phone: ${payload.customerPhone}`,
+    `Services: ${getServiceSummary(payload.items)}`,
+    `Date & Time: ${payload.preferredDate} - ${payload.preferredTimeSlot}`,
+    `Total COD: Rs. ${payload.totalAmount.toLocaleString()}`
+  ].join("\n");
+}
+
+function createHistoryItem(booking: Booking, payload: BookingCreateInput, source: BookingSource): BookingHistoryItem {
+  return {
+    bookingCode: booking.bookingCode,
+    serviceSummary: getServiceSummary(payload.items),
+    total: payload.totalAmount,
+    preferredDate: payload.preferredDate,
+    preferredTimeSlot: payload.preferredTimeSlot,
+    status: booking.status,
+    source,
+    createdAt: booking.createdAt
+  };
+}
+
+function createHistoryItemFromPayload(bookingCode: string, payload: BookingCreateInput, source: BookingSource): BookingHistoryItem {
+  return {
+    bookingCode,
+    serviceSummary: getServiceSummary(payload.items),
+    total: payload.totalAmount,
+    preferredDate: payload.preferredDate,
+    preferredTimeSlot: payload.preferredTimeSlot,
+    status: source === "database" ? "PENDING" : "PENDING_WHATSAPP",
+    source,
+    createdAt: new Date().toISOString()
+  };
 }

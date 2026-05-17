@@ -4,6 +4,13 @@ import { prisma } from "../db/prisma.js";
 
 export const bookingsRouter = Router();
 
+function createBookingCode() {
+  const date = new Date();
+  const day = date.toISOString().slice(2, 10).replace(/-/g, "");
+  const random = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `TWG-${day}-${random}`;
+}
+
 bookingsRouter.get("/", async (_req, res, next) => {
   try {
     const bookings = await prisma.booking.findMany({
@@ -20,11 +27,31 @@ bookingsRouter.get("/", async (_req, res, next) => {
   }
 });
 
+bookingsRouter.get("/:bookingCode", async (req, res, next) => {
+  try {
+    const booking = await prisma.booking.findUnique({
+      where: { bookingCode: req.params.bookingCode },
+      include: {
+        items: true
+      }
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: "Booking not found" });
+    }
+
+    return res.json({ data: booking });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 bookingsRouter.post("/", async (req, res, next) => {
   try {
     const input = bookingCreateSchema.parse(req.body);
     const booking = await prisma.booking.create({
       data: {
+        bookingCode: createBookingCode(),
         userId: input.userId,
         customerName: input.customerName,
         customerPhone: input.customerPhone,

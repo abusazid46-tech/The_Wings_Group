@@ -56,3 +56,30 @@ export type BookingCreateInput = {
   totalAmount: number;
   items: BookingItemInput[];
 };
+
+export type BookingItem = {
+  id: string;
+  serviceId?: string | null;
+  serviceName: string;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+export type Booking = {
+  id: string;
+  bookingCode: string;
+  customerName: string;
+  customerPhone: string;
+  addressLine: string;
+  city: string;
+  preferredDate: string;
+  preferredTimeSlot: string;
+  notes?: string | null;
+  status: BookingStatus;
+  paymentMode: PaymentMode;
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+  items: BookingItem[];
+};

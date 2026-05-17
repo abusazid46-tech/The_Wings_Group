@@ -1,4 +1,4 @@
-import type { BookingCreateInput, Service } from "@the-wings/types";
+import type { Booking, BookingCreateInput, Service } from "@the-wings/types";
 
 type ApiClientOptions = {
   baseUrl: string;
@@ -19,10 +19,14 @@ export class ApiClient {
   }
 
   async createBooking(input: BookingCreateInput) {
-    return this.request<{ data: unknown }>("/bookings", {
+    return this.request<{ data: Booking }>("/bookings", {
       method: "POST",
       body: JSON.stringify(input)
     });
+  }
+
+  async getBooking(bookingCode: string) {
+    return this.request<{ data: Booking }>(`/bookings/${encodeURIComponent(bookingCode)}`);
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
