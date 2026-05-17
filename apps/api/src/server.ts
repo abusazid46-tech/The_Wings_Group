@@ -3,8 +3,11 @@ import express from "express";
 import helmet from "helmet";
 import { ZodError } from "zod";
 import { corsOrigins, env } from "./config/env.js";
+import { adminRouter } from "./routes/admin.js";
 import { bookingsRouter } from "./routes/bookings.js";
+import { crmRouter } from "./routes/crm.js";
 import { healthRouter } from "./routes/health.js";
+import { leadsRouter } from "./routes/leads.js";
 import { servicesRouter } from "./routes/services.js";
 
 const app = express();
@@ -19,8 +22,11 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/health", healthRouter);
+app.use("/admin", adminRouter);
 app.use("/services", servicesRouter);
 app.use("/bookings", bookingsRouter);
+app.use("/leads", leadsRouter);
+app.use("/crm", crmRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ error: "Route not found" });

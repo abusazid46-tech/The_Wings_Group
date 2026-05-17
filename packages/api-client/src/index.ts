@@ -1,4 +1,21 @@
-import type { Booking, BookingCreateInput, Service } from "@the-wings/types";
+import type {
+  AdminDashboard,
+  Booking,
+  BookingCreateInput,
+  BookingStatusUpdateInput,
+  CrmNote,
+  CrmNoteCreateInput,
+  CustomerSummary,
+  Lead,
+  LeadCreateInput,
+  LeadUpdateInput,
+  Service,
+  ServiceCategory,
+  ServiceCreateInput,
+  ServiceUpdateInput,
+  WhatsappMessage,
+  WhatsappMessageCreateInput
+} from "@the-wings/types";
 
 type ApiClientOptions = {
   baseUrl: string;
@@ -14,8 +31,33 @@ export class ApiClient {
     this.token = options.token;
   }
 
-  async getServices() {
-    return this.request<{ data: Service[] }>("/services");
+  async getServices(options?: { includeInactive?: boolean }) {
+    const query = options?.includeInactive ? "?includeInactive=true" : "";
+    return this.request<{ data: Service[] }>(`/services${query}`);
+  }
+
+  async getServiceCategories() {
+    return this.request<{ data: ServiceCategory[] }>("/services/categories");
+  }
+
+  async createService(input: ServiceCreateInput) {
+    return this.request<{ data: Service }>("/services", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async updateService(id: string, input: ServiceUpdateInput) {
+    return this.request<{ data: Service }>(`/services/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async deleteService(id: string) {
+    return this.request<{ data: Service }>(`/services/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
   }
 
   async createBooking(input: BookingCreateInput) {
@@ -27,6 +69,67 @@ export class ApiClient {
 
   async getBooking(bookingCode: string) {
     return this.request<{ data: Booking }>(`/bookings/${encodeURIComponent(bookingCode)}`);
+  }
+
+  async getBookings() {
+    return this.request<{ data: Booking[] }>("/bookings");
+  }
+
+  async updateBookingStatus(bookingCode: string, input: BookingStatusUpdateInput) {
+    return this.request<{ data: Booking }>(`/bookings/${encodeURIComponent(bookingCode)}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async getAdminDashboard() {
+    return this.request<{ data: AdminDashboard }>("/admin/dashboard");
+  }
+
+  async getCustomers() {
+    return this.request<{ data: CustomerSummary[] }>("/admin/customers");
+  }
+
+  async getLeads() {
+    return this.request<{ data: Lead[] }>("/leads");
+  }
+
+  async createLead(input: LeadCreateInput) {
+    return this.request<{ data: Lead }>("/leads", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async updateLead(id: string, input: LeadUpdateInput) {
+    return this.request<{ data: Lead }>(`/leads/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async deleteLead(id: string) {
+    return this.request<{ data: Lead }>(`/leads/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
+  }
+
+  async getCrmNotes() {
+    return this.request<{ data: CrmNote[] }>("/crm/notes");
+  }
+
+  async createCrmNote(input: CrmNoteCreateInput) {
+    return this.request<{ data: CrmNote }>("/crm/notes", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async logWhatsappMessage(input: WhatsappMessageCreateInput) {
+    return this.request<{ data: WhatsappMessage; whatsappUrl: string }>("/crm/whatsapp", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

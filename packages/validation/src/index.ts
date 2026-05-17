@@ -18,6 +18,8 @@ export const serviceCreateSchema = z.object({
   isActive: z.boolean().default(true)
 });
 
+export const serviceUpdateSchema = serviceCreateSchema.partial();
+
 export const bookingItemSchema = z.object({
   serviceId: z.string().optional(),
   serviceName: z.string().min(2),
@@ -39,5 +41,42 @@ export const bookingCreateSchema = z.object({
   items: z.array(bookingItemSchema).min(1)
 });
 
+export const bookingStatusUpdateSchema = z.object({
+  status: z.enum(["PENDING", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"]),
+  note: z.string().optional(),
+  assignedStaffId: z.string().optional()
+});
+
+export const leadCreateSchema = z.object({
+  name: z.string().min(2).optional(),
+  phone: phoneSchema,
+  email: z.string().email().optional(),
+  source: z.string().min(2).optional(),
+  status: z.enum(["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"]).default("NEW"),
+  notes: z.string().optional()
+});
+
+export const leadUpdateSchema = leadCreateSchema.partial();
+
+export const crmNoteCreateSchema = z.object({
+  userId: z.string().optional(),
+  title: z.string().min(2),
+  body: z.string().min(2)
+});
+
+export const whatsappMessageCreateSchema = z.object({
+  phone: phoneSchema,
+  template: z.string().optional(),
+  direction: z.enum(["OUTBOUND", "INBOUND"]).default("OUTBOUND"),
+  status: z.string().default("QUEUED"),
+  message: z.string().min(1)
+});
+
 export type ServiceCreateInput = z.infer<typeof serviceCreateSchema>;
+export type ServiceUpdateInput = z.infer<typeof serviceUpdateSchema>;
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>;
+export type BookingStatusUpdateInput = z.infer<typeof bookingStatusUpdateSchema>;
+export type LeadCreateInput = z.infer<typeof leadCreateSchema>;
+export type LeadUpdateInput = z.infer<typeof leadUpdateSchema>;
+export type CrmNoteCreateInput = z.infer<typeof crmNoteCreateSchema>;
+export type WhatsappMessageCreateInput = z.infer<typeof whatsappMessageCreateSchema>;

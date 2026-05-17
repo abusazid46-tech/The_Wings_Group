@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { bookingCreateSchema } from "@the-wings/validation";
+import { bookingCreateSchema, bookingStatusUpdateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
 
 export const bookingsRouter = Router();
@@ -39,6 +39,33 @@ bookingsRouter.get("/:bookingCode", async (req, res, next) => {
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
     }
+
+    return res.json({ data: booking });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+bookingsRouter.patch("/:bookingCode/status", async (req, res, next) => {
+  try {
+    const input = bookingStatusUpdateSchema.parse(req.body);
+    const booking = await prisma.booking.update({
+      where: { bookingCode: req.params.bookingCode },
+      data: {
+        status: input.status,
+        assignedStaffId: input.assignedStaffId,
+        statusLogs: {
+          create: {
+            status: input.status,
+            note: input.note || `Status changed to ${input.status}`
+          }
+        }
+      },
+      include: {
+        items: true,
+        statusLogs: true
+      }
+    });
 
     return res.json({ data: booking });
   } catch (error) {
