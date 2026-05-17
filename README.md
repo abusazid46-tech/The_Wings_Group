@@ -1,26 +1,78 @@
-# The Wings Group
+# The Wings Group Platform
 
-Static website for The Wings Group, a Northeast India home-care, cleaning, AC servicing, security, and facility-management service brand.
+Full-stack monorepo for The Wings Group cleaning and facility-services platform.
 
-## Pages
+## Apps
 
-- `index.html` - homepage, service catalog, cart, and booking modal
-- `about.html` - company story, mission, vision, values, and contact details
-- `vercel.json` - Vercel static routing for `/` and `/about`
+- `apps/web` - Next.js customer website. It currently renders the exact approved static UI from `apps/web/src/legacy`.
+- `apps/admin` - Next.js admin CRM/dashboard shell for bookings, services, customers, leads, and payments.
+- `apps/api` - Express + Prisma backend foundation.
+- `apps/mobile` - Expo React Native mobile app foundation.
 
-## Booking Flow
+## Shared Packages
 
-Customers choose one or more services, fill in their contact details, and confirm the booking. The site opens WhatsApp with a prefilled booking message to `+91 9774887803`, so the business receives the booking details directly.
+- `packages/types` - shared TypeScript domain types.
+- `packages/validation` - shared Zod validation schemas.
+- `packages/api-client` - shared typed API client.
+- `packages/ui` - shared design tokens.
 
-## Deployment
+## Milestone 1 Status
 
-This is a plain static site. It can be deployed to Vercel without a build step.
+Completed foundation:
 
-Vercel routes:
+- Monorepo structure with pnpm workspaces and Turborepo.
+- Customer website converted to Next.js while preserving the current UI.
+- Admin dashboard UI shell.
+- Expo mobile app shell.
+- Backend API app with health, services, and bookings routes.
+- PostgreSQL Prisma schema for users, services, bookings, payments, staff, CRM notes, leads, and WhatsApp message logs.
+- Shared types, validation, API client, and design tokens.
 
-- `/` -> `/index.html`
-- `/about` -> `/about.html`
+## Local Setup
 
-## Local Preview
+Install dependencies:
 
-Open `index.html` in a browser, or serve the folder with any static file server.
+```bash
+pnpm install
+```
+
+Copy environment variables:
+
+```bash
+cp .env.example .env
+```
+
+Generate Prisma client:
+
+```bash
+pnpm db:generate
+```
+
+Run database migration:
+
+```bash
+pnpm db:migrate
+```
+
+Run all apps:
+
+```bash
+pnpm dev
+```
+
+Useful app URLs:
+
+- Customer website: `http://localhost:3000`
+- Admin panel: `http://localhost:3001`
+- API health: `http://localhost:4000/health`
+
+## Next Milestone
+
+Milestone 2 should turn the foundations into working product flows:
+
+- Firebase OTP and Google login.
+- Dynamic services loaded from backend.
+- Admin service CRUD.
+- Booking creation from website to API.
+- Razorpay order creation and webhook verification.
+- WhatsApp Cloud API booking confirmation.

@@ -1,10 +1,5 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "*.html", "use": "@vercel/static" }
-  ],
-  "routes": [
-    { "src": "/", "dest": "/index.html" },
-    { "src": "/about", "dest": "/about.html" }
-  ]
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm --filter @the-wings/web build",
+  "outputDirectory": "apps/web/out"
 }

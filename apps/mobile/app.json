@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "The Wings Group",
+    "slug": "the-wings-group",
+    "scheme": "thewingsgroup",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.thewingsgroup.app"
+    },
+    "extra": {
+      "apiUrl": "http://localhost:4000"
+    }
+  }
+}
