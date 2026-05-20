@@ -2,6 +2,7 @@ import { Router } from "express";
 import { bookingCreateSchema, bookingStatusUpdateSchema } from "@the-wings/validation";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
+import { getAuthUserFromRequest } from "../services/auth.js";
 import { sendWhatsAppText } from "../services/whatsapp.js";
 
 export const bookingsRouter = Router();
@@ -79,10 +80,30 @@ bookingsRouter.patch("/:bookingCode/status", async (req, res, next) => {
 bookingsRouter.post("/", async (req, res, next) => {
   try {
     const input = bookingCreateSchema.parse(req.body);
+    const authUser = await getAuthUserFromRequest(req);
+    const bookingUserId = authUser?.id;
+
+    if (authUser) {
+      await prisma.user
+        .update({
+          where: { id: authUser.id },
+          data: {
+            name: authUser.name || input.customerName,
+            phone: authUser.phone || input.customerPhone
+          }
+        })
+        .catch(() =>
+          prisma.user.update({
+            where: { id: authUser.id },
+            data: { name: authUser.name || input.customerName }
+          })
+        );
+    }
+
     const booking = await prisma.booking.create({
       data: {
         bookingCode: createBookingCode(),
-        userId: input.userId,
+        userId: bookingUserId,
         customerName: input.customerName,
         customerPhone: input.customerPhone,
         addressLine: input.addressLine,

@@ -1,14 +1,19 @@
 import type {
   AdminDashboard,
+  AuthSession,
   Booking,
   BookingCreateInput,
   BookingStatusUpdateInput,
   CrmNote,
   CrmNoteCreateInput,
   CustomerSummary,
+  GoogleLoginInput,
   Lead,
   LeadCreateInput,
   LeadUpdateInput,
+  OtpRequestInput,
+  OtpRequestResponse,
+  OtpVerifyInput,
   RazorpayOrderCreateInput,
   RazorpayOrderResponse,
   RazorpayVerifyInput,
@@ -33,6 +38,31 @@ export class ApiClient {
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.token = options.token;
+  }
+
+  async requestOtp(input: OtpRequestInput) {
+    return this.request<{ data: OtpRequestResponse }>("/auth/otp/request", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async verifyOtp(input: OtpVerifyInput) {
+    return this.request<{ data: AuthSession }>("/auth/otp/verify", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async loginWithGoogle(input: GoogleLoginInput) {
+    return this.request<{ data: AuthSession }>("/auth/google", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async getMe() {
+    return this.request<{ data: AuthSession["user"] }>("/auth/me");
   }
 
   async getServices(options?: { includeInactive?: boolean }) {

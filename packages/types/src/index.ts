@@ -58,6 +58,45 @@ export type BookingCreateInput = {
   items: BookingItemInput[];
 };
 
+export type AuthUser = {
+  id: string;
+  role: UserRole;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  googleId?: string | null;
+  avatarUrl?: string | null;
+};
+
+export type AuthSession = {
+  token: string;
+  user: AuthUser;
+};
+
+export type OtpRequestInput = {
+  phone: string;
+  name?: string;
+};
+
+export type OtpRequestResponse = {
+  phone: string;
+  expiresInSeconds: number;
+  delivery: "whatsapp" | "queued" | "debug";
+  whatsappUrl?: string;
+  debugOtp?: string;
+  message: string;
+};
+
+export type OtpVerifyInput = {
+  phone: string;
+  code: string;
+  name?: string;
+};
+
+export type GoogleLoginInput = {
+  credential: string;
+};
+
 export type Payment = {
   id: string;
   bookingId: string;

@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { ZodError } from "zod";
 import { corsOrigins, env } from "./config/env.js";
 import { adminRouter } from "./routes/admin.js";
+import { authRouter } from "./routes/auth.js";
 import { bookingsRouter } from "./routes/bookings.js";
 import { crmRouter } from "./routes/crm.js";
 import { healthRouter } from "./routes/health.js";
@@ -23,6 +24,7 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/health", healthRouter);
+app.use("/auth", authRouter);
 app.use("/admin", adminRouter);
 app.use("/services", servicesRouter);
 app.use("/bookings", bookingsRouter);

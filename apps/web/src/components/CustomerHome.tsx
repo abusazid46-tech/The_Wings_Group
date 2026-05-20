@@ -1,9 +1,9 @@
 "use client";
 
 import { createApiClient } from "@the-wings/api-client";
-import type { Booking, BookingCreateInput, PaymentMode, RazorpayOrderResponse } from "@the-wings/types";
+import type { AuthSession, Booking, BookingCreateInput, PaymentMode, RazorpayOrderResponse } from "@the-wings/types";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
@@ -36,10 +36,22 @@ type RazorpayCheckoutOptions = {
     ondismiss: () => void;
   };
 };
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+type GoogleAccounts = {
+  id: {
+    initialize: (options: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void;
+    renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
+  };
+};
 
 declare global {
   interface Window {
     Razorpay?: new (options: RazorpayCheckoutOptions) => { open: () => void };
+    google?: {
+      accounts: GoogleAccounts;
+    };
   }
 }
 
@@ -85,11 +97,14 @@ type BookingHistoryItem = {
 };
 
 const bookingHistoryKey = "twg_customer_bookings";
+const authStorageKey = "twg_auth_session";
+const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 export function CustomerHome() {
   const [placeholder, setPlaceholder] = useState("Search for 'Bathroom Cleaning'");
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [success, setSuccess] = useState(false);
   const [locationStatus, setLocationStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -109,6 +124,7 @@ export function CustomerHome() {
   const [bookingRef, setBookingRef] = useState<string | null>(null);
   const [confirmedPayload, setConfirmedPayload] = useState<BookingCreateInput | null>(null);
   const [bookingHistory, setBookingHistory] = useState<BookingHistoryItem[]>([]);
+  const [authSession, setAuthSession] = useState<AuthSession | null>(null);
 
   useEffect(() => {
     let termIndex = 0;
@@ -148,6 +164,34 @@ export function CustomerHome() {
     } catch {
       setBookingHistory([]);
     }
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function restoreSession() {
+      try {
+        const stored = window.localStorage.getItem(authStorageKey);
+        if (!stored) return;
+
+        const session = JSON.parse(stored) as AuthSession;
+        setAuthSession(session);
+        const response = await createApiClient({ token: session.token }).getMe();
+        if (!mounted) return;
+        const freshSession = { ...session, user: response.data };
+        setAuthSession(freshSession);
+        window.localStorage.setItem(authStorageKey, JSON.stringify(freshSession));
+      } catch {
+        if (!mounted) return;
+        setAuthSession(null);
+        window.localStorage.removeItem(authStorageKey);
+      }
+    }
+
+    restoreSession();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const filteredServices = useMemo(() => {
@@ -268,6 +312,23 @@ export function CustomerHome() {
     });
   }
 
+  function saveAuthSession(session: AuthSession) {
+    setAuthSession(session);
+    window.localStorage.setItem(authStorageKey, JSON.stringify(session));
+    setForm((current) => ({
+      ...current,
+      name: current.name || session.user.name || "",
+      phone: current.phone || session.user.phone || ""
+    }));
+    setAuthModalOpen(false);
+    setSubmitMessage("");
+  }
+
+  function signOut() {
+    setAuthSession(null);
+    window.localStorage.removeItem(authStorageKey);
+  }
+
   function selectLocation(choice: LocationChoice) {
     setLocation(choice);
     setForm((current) => ({
@@ -350,6 +411,12 @@ export function CustomerHome() {
   async function confirmBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    if (!authSession) {
+      setSubmitMessage("Sign in with OTP or Google to continue booking.");
+      setAuthModalOpen(true);
+      return;
+    }
+
     const normalizedForm: BookingForm = {
       ...form,
       name: form.name.trim(),
@@ -366,13 +433,13 @@ export function CustomerHome() {
       return;
     }
 
-    const payload = createBookingPayload(normalizedForm, cartItems, total);
+    const payload = createBookingPayload(normalizedForm, cartItems, total, authSession.user.id);
     setConfirmedPayload(payload);
     setSubmitStatus("submitting");
     setSubmitMessage("Creating your booking...");
 
     try {
-      const response = await createApiClient().createBooking(payload);
+      const response = await createApiClient({ token: authSession.token }).createBooking(payload);
       const booking = response.data;
       const whatsappUrl = createWhatsappUrl(booking.bookingCode, payload);
       const result: BookingResult = {
@@ -427,7 +494,7 @@ export function CustomerHome() {
     setPaymentMessage("Creating secure Razorpay order...");
 
     try {
-      const orderResponse = await createApiClient().createRazorpayOrder({ bookingCode: bookingResult.bookingCode });
+      const orderResponse = await createApiClient({ token: authSession?.token }).createRazorpayOrder({ bookingCode: bookingResult.bookingCode });
       const order = orderResponse.data;
 
       if (!order.checkoutEnabled || !order.keyId) {
@@ -486,7 +553,7 @@ export function CustomerHome() {
     setPaymentMessage("Verifying payment...");
 
     try {
-      const verified = await createApiClient().verifyRazorpayPayment({
+      const verified = await createApiClient({ token: authSession?.token }).verifyRazorpayPayment({
         bookingCode: order.bookingCode,
         razorpayOrderId: response.razorpay_order_id,
         razorpayPaymentId: response.razorpay_payment_id,
@@ -512,9 +579,12 @@ export function CustomerHome() {
         location={location}
         searchQuery={searchQuery}
         cartCount={cartCount}
+        authSession={authSession}
         onSearchChange={setSearchQuery}
         onOpenCart={openCart}
         onOpenLocation={() => setLocationModalOpen(true)}
+        onOpenAuth={() => setAuthModalOpen(true)}
+        onSignOut={signOut}
       />
       <PromoPanel />
       <Hero onQuickBook={quickBook} />
@@ -545,6 +615,15 @@ export function CustomerHome() {
         />
       )}
 
+      {authModalOpen && (
+        <AuthModal
+          initialPhone={form.phone}
+          initialName={form.name}
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={saveAuthSession}
+        />
+      )}
+
       {bookingModalOpen && (
         <BookingModal
           cartItems={cartItems}
@@ -559,7 +638,9 @@ export function CustomerHome() {
           bookingResult={bookingResult}
           bookingRef={bookingRef}
           bookingHistory={bookingHistory}
+          authSession={authSession}
           onClose={() => setBookingModalOpen(false)}
+          onOpenAuth={() => setAuthModalOpen(true)}
           onSubmit={confirmBooking}
           onPayOnline={startOnlinePayment}
           onFormChange={updateForm}
@@ -577,17 +658,23 @@ function Navbar({
   location,
   searchQuery,
   cartCount,
+  authSession,
   onSearchChange,
   onOpenCart,
-  onOpenLocation
+  onOpenLocation,
+  onOpenAuth,
+  onSignOut
 }: {
   placeholder: string;
   location: LocationChoice;
   searchQuery: string;
   cartCount: number;
+  authSession: AuthSession | null;
   onSearchChange: (value: string) => void;
   onOpenCart: () => void;
   onOpenLocation: () => void;
+  onOpenAuth: () => void;
+  onSignOut: () => void;
 }) {
   return (
     <nav className="navbar">
@@ -629,6 +716,17 @@ function Navbar({
             <a className="uc-nav-link" href="#services">Services</a>
             <Link className="uc-nav-link" href="/about">About</Link>
             <a className="uc-nav-link" href="#how">How it Works</a>
+            {authSession ? (
+              <button className="uc-auth-pill signed-in" type="button" onClick={onSignOut} title="Sign out">
+                {getUserInitial(authSession)}
+                <span>{authSession.user.name || authSession.user.phone || "Account"}</span>
+              </button>
+            ) : (
+              <button className="uc-auth-pill" type="button" onClick={onOpenAuth}>
+                <i className="bi bi-person-circle" />
+                <span>Sign in</span>
+              </button>
+            )}
             <button className="uc-cart-icon ms-1" onClick={onOpenCart} type="button" title="Cart">
               <i className="bi bi-cart3" />
               {cartCount > 0 && <span className="uc-cart-badge">{cartCount}</span>}
@@ -638,6 +736,11 @@ function Navbar({
       </div>
     </nav>
   );
+}
+
+function getUserInitial(session: AuthSession) {
+  const value = session.user.name || session.user.email || session.user.phone || "U";
+  return value.trim().charAt(0).toUpperCase();
 }
 
 function PromoPanel() {
@@ -1010,6 +1113,172 @@ function LocationModal({
   );
 }
 
+function AuthModal({
+  initialPhone,
+  initialName,
+  onClose,
+  onSuccess
+}: {
+  initialPhone: string;
+  initialName: string;
+  onClose: () => void;
+  onSuccess: (session: AuthSession) => void;
+}) {
+  const [phone, setPhone] = useState(initialPhone);
+  const [name, setName] = useState(initialName);
+  const [code, setCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("Enter your mobile number to receive a login OTP.");
+  const [error, setError] = useState("");
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleRenderedRef = useRef(false);
+
+  useEffect(() => {
+    if (!googleClientId || googleRenderedRef.current) return;
+
+    let active = true;
+    loadGoogleIdentity().then((loaded) => {
+      if (!active || !loaded || !window.google || !googleButtonRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          if (!response.credential) {
+            setError("Google did not return a login credential.");
+            return;
+          }
+
+          setBusy(true);
+          setError("");
+          setStatus("Verifying Google account...");
+          try {
+            const result = await createApiClient().loginWithGoogle({ credential: response.credential });
+            onSuccess(result.data);
+          } catch {
+            setError("Google login failed. Check Google OAuth client settings and backend env.");
+          } finally {
+            setBusy(false);
+          }
+        }
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 320,
+        text: "continue_with",
+        shape: "pill"
+      });
+      googleRenderedRef.current = true;
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [onSuccess]);
+
+  async function requestOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (!/^[6-9]\d{9}$/.test(phone.trim())) {
+      setError("Enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+
+    setBusy(true);
+    setStatus("Sending OTP...");
+    try {
+      const response = await createApiClient().requestOtp({
+        phone: phone.trim(),
+        name: name.trim() || undefined
+      });
+      setOtpSent(true);
+      setStatus(
+        response.data.debugOtp
+          ? `OTP ready for local testing: ${response.data.debugOtp}`
+          : response.data.message
+      );
+    } catch {
+      setError("Could not request OTP. Please check the API connection.");
+      setStatus("Enter your mobile number to receive a login OTP.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (!/^\d{6}$/.test(code.trim())) {
+      setError("Enter the 6-digit OTP.");
+      return;
+    }
+
+    setBusy(true);
+    setStatus("Verifying OTP...");
+    try {
+      const response = await createApiClient().verifyOtp({
+        phone: phone.trim(),
+        code: code.trim(),
+        name: name.trim() || undefined
+      });
+      onSuccess(response.data);
+    } catch {
+      setError("Invalid or expired OTP.");
+      setStatus("Request a fresh OTP if the code has expired.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="app-modal-backdrop">
+      <div className="app-modal auth-modal">
+        <div className="modal-header-custom d-flex justify-content-between align-items-start">
+          <div>
+            <h5 className="mb-1">Customer Login</h5>
+            <div className="uc-cod-strip p-0" style={{ background: "transparent", color: "var(--gold-light)" }}>
+              <i className="bi bi-shield-lock" /> OTP or Google Sign-In
+            </div>
+          </div>
+          <button className="modal-close" type="button" onClick={onClose} aria-label="Close login">x</button>
+        </div>
+        <div className="modal-body">
+          <div className="auth-grid">
+            <form className="auth-panel" onSubmit={otpSent ? verifyOtp : requestOtp}>
+              <div>
+                <h6>Login with OTP</h6>
+                <p>{status}</p>
+              </div>
+              <Field label="Name" value={name} onChange={setName} placeholder="Customer name" />
+              <Field label="Mobile Number" value={phone} onChange={setPhone} placeholder="10-digit mobile number" type="tel" />
+              {otpSent && <Field label="OTP" value={code} onChange={setCode} placeholder="6-digit OTP" inputMode="numeric" />}
+              {error && <div className="auth-error">{error}</div>}
+              <button className="btn-confirm w-100" type="submit" disabled={busy}>
+                {busy ? "Please wait..." : otpSent ? "Verify OTP" : "Send OTP"}
+              </button>
+              {otpSent && (
+                <button className="auth-link-button" type="button" onClick={() => setOtpSent(false)} disabled={busy}>
+                  Change mobile number
+                </button>
+              )}
+            </form>
+            <div className="auth-panel">
+              <div>
+                <h6>Continue with Google</h6>
+                <p>{googleClientId ? "Use a verified Google account." : "Add Google client ID env to enable this button."}</p>
+              </div>
+              <div className="google-button-wrap" ref={googleButtonRef} />
+              {!googleClientId && <div className="auth-error">Google login is not configured yet.</div>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BookingModal({
   cartItems,
   total,
@@ -1023,7 +1292,9 @@ function BookingModal({
   bookingResult,
   bookingRef,
   bookingHistory,
+  authSession,
   onClose,
+  onOpenAuth,
   onSubmit,
   onPayOnline,
   onFormChange,
@@ -1043,7 +1314,9 @@ function BookingModal({
   bookingResult: BookingResult | null;
   bookingRef: string | null;
   bookingHistory: BookingHistoryItem[];
+  authSession: AuthSession | null;
   onClose: () => void;
+  onOpenAuth: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onPayOnline: () => void | Promise<void>;
   onFormChange: (field: keyof BookingForm, value: string) => void;
@@ -1110,6 +1383,21 @@ function BookingModal({
             </div>
           ) : (
             <form onSubmit={onSubmit}>
+              <div className={`booking-auth-card ${authSession ? "signed-in" : ""}`}>
+                <div>
+                  <strong>{authSession ? "Signed in for this booking" : "Sign in to continue"}</strong>
+                  <span>
+                    {authSession
+                      ? authSession.user.name || authSession.user.phone || authSession.user.email || "Customer account ready"
+                      : "Use OTP or Google so booking history stays linked to the customer."}
+                  </span>
+                </div>
+                {!authSession && (
+                  <button type="button" onClick={onOpenAuth}>
+                    Sign in
+                  </button>
+                )}
+              </div>
               <div className="booking-summary">
                 <div className="booking-summary-head">
                   <strong>Your Services</strong>
@@ -1341,6 +1629,7 @@ function Field({
   onChange,
   placeholder,
   type = "text",
+  inputMode,
   min,
   error
 }: {
@@ -1349,6 +1638,7 @@ function Field({
   onChange: (value: string) => void;
   placeholder?: string;
   type?: string;
+  inputMode?: "text" | "search" | "email" | "tel" | "url" | "none" | "numeric" | "decimal";
   min?: string;
   error?: string;
 }) {
@@ -1361,6 +1651,7 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         type={type}
+        inputMode={inputMode}
         min={min}
       />
       {error && <div className="field-error">{error}</div>}
@@ -1388,8 +1679,9 @@ function validateBookingForm(form: BookingForm, cartItems: CartItem[]) {
   return errors;
 }
 
-function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: number): BookingCreateInput {
+function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: number, userId?: string): BookingCreateInput {
   return {
+    userId,
     customerName: form.name,
     customerPhone: form.phone,
     addressLine: form.address,
@@ -1425,6 +1717,27 @@ function loadRazorpayCheckout() {
     const script = document.createElement("script");
     script.src = "https://checkout.razorpay.com/v1/checkout.js";
     script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
+function loadGoogleIdentity() {
+  if (window.google?.accounts?.id) return Promise.resolve(true);
+
+  return new Promise<boolean>((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
     script.onload = () => resolve(true);
     script.onerror = () => resolve(false);
     document.body.appendChild(script);

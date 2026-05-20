@@ -41,6 +41,21 @@ export const bookingCreateSchema = z.object({
   items: z.array(bookingItemSchema).min(1)
 });
 
+export const otpRequestSchema = z.object({
+  phone: phoneSchema,
+  name: z.string().trim().min(2).optional()
+});
+
+export const otpVerifySchema = z.object({
+  phone: phoneSchema,
+  code: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit OTP"),
+  name: z.string().trim().min(2).optional()
+});
+
+export const googleLoginSchema = z.object({
+  credential: z.string().min(20, "Google credential is required")
+});
+
 export const bookingStatusUpdateSchema = z.object({
   status: z.enum(["PENDING", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"]),
   note: z.string().optional(),
@@ -86,6 +101,9 @@ export const razorpayVerifySchema = z.object({
 export type ServiceCreateInput = z.infer<typeof serviceCreateSchema>;
 export type ServiceUpdateInput = z.infer<typeof serviceUpdateSchema>;
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>;
+export type OtpRequestInput = z.infer<typeof otpRequestSchema>;
+export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 export type BookingStatusUpdateInput = z.infer<typeof bookingStatusUpdateSchema>;
 export type LeadCreateInput = z.infer<typeof leadCreateSchema>;
 export type LeadUpdateInput = z.infer<typeof leadUpdateSchema>;

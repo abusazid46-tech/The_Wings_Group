@@ -7,6 +7,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   JWT_SECRET: z.string().min(24, "JWT_SECRET must be at least 24 characters"),
   CORS_ORIGIN: z.string().default("http://localhost:3000,http://localhost:3001"),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  OTP_DEBUG_ENABLED: z.coerce.boolean().default(false),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),
