@@ -1,53 +1,38 @@
-import cors from "cors";
-import express from "express";
-import helmet from "helmet";
-import { ZodError } from "zod";
-import { corsOrigins, env } from "./config/env.js";
-import { adminRouter } from "./routes/admin.js";
-import { authRouter } from "./routes/auth.js";
-import { bookingsRouter } from "./routes/bookings.js";
-import { crmRouter } from "./routes/crm.js";
-import { healthRouter } from "./routes/health.js";
-import { leadsRouter } from "./routes/leads.js";
-import { paymentsRouter } from "./routes/payments.js";
-import { servicesRouter } from "./routes/services.js";
+import { env } from "./config/env.js";
+import { createApp } from "./app.js";
+import { prisma } from "./db/prisma.js";
+import { logger, reportError } from "./services/logger.js";
 
-const app = express();
+const app = createApp();
 
-app.use(helmet());
-app.use(
-  cors({
-    origin: corsOrigins,
-    credentials: true
-  })
-);
-app.use(express.json({ limit: "1mb" }));
-
-app.use("/health", healthRouter);
-app.use("/auth", authRouter);
-app.use("/admin", adminRouter);
-app.use("/services", servicesRouter);
-app.use("/bookings", bookingsRouter);
-app.use("/payments", paymentsRouter);
-app.use("/leads", leadsRouter);
-app.use("/crm", crmRouter);
-
-app.use((_req, res) => {
-  res.status(404).json({ error: "Route not found" });
+const server = app.listen(env.PORT, () => {
+  logger.info("The Wings API started", {
+    port: env.PORT,
+    nodeEnv: env.NODE_ENV
+  });
 });
 
-app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  if (error instanceof ZodError) {
-    return res.status(400).json({
-      error: "Validation failed",
-      details: error.flatten()
-    });
-  }
+async function shutdown(signal: string) {
+  logger.info("Shutting down API", { signal });
+  server.close(async () => {
+    await prisma.$disconnect();
+    process.exit(0);
+  });
+}
 
-  console.error(error);
-  return res.status(500).json({ error: "Internal server error" });
+process.on("SIGTERM", () => {
+  void shutdown("SIGTERM");
 });
 
-app.listen(env.PORT, () => {
-  console.log(`The Wings API is running on http://localhost:${env.PORT}`);
+process.on("SIGINT", () => {
+  void shutdown("SIGINT");
+});
+
+process.on("unhandledRejection", (error) => {
+  reportError(error, { event: "unhandledRejection" });
+});
+
+process.on("uncaughtException", (error) => {
+  reportError(error, { event: "uncaughtException" });
+  void shutdown("uncaughtException");
 });

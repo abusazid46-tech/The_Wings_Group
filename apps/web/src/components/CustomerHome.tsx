@@ -97,7 +97,6 @@ type BookingHistoryItem = {
 };
 
 const bookingHistoryKey = "twg_customer_bookings";
-const authStorageKey = "twg_auth_session";
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 export function CustomerHome() {
@@ -171,20 +170,12 @@ export function CustomerHome() {
 
     async function restoreSession() {
       try {
-        const stored = window.localStorage.getItem(authStorageKey);
-        if (!stored) return;
-
-        const session = JSON.parse(stored) as AuthSession;
-        setAuthSession(session);
-        const response = await createApiClient({ token: session.token }).getMe();
+        const response = await createApiClient().getMe();
         if (!mounted) return;
-        const freshSession = { ...session, user: response.data };
-        setAuthSession(freshSession);
-        window.localStorage.setItem(authStorageKey, JSON.stringify(freshSession));
+        setAuthSession({ user: response.data });
       } catch {
         if (!mounted) return;
         setAuthSession(null);
-        window.localStorage.removeItem(authStorageKey);
       }
     }
 
@@ -314,7 +305,6 @@ export function CustomerHome() {
 
   function saveAuthSession(session: AuthSession) {
     setAuthSession(session);
-    window.localStorage.setItem(authStorageKey, JSON.stringify(session));
     setForm((current) => ({
       ...current,
       name: current.name || session.user.name || "",
@@ -324,9 +314,13 @@ export function CustomerHome() {
     setSubmitMessage("");
   }
 
-  function signOut() {
+  async function signOut() {
+    try {
+      await createApiClient().logout();
+    } catch {
+      // Local state still clears if the network is unavailable.
+    }
     setAuthSession(null);
-    window.localStorage.removeItem(authStorageKey);
   }
 
   function selectLocation(choice: LocationChoice) {
@@ -360,7 +354,7 @@ export function CustomerHome() {
     );
   }
 
-  function legacyConfirmBooking(event: FormEvent<HTMLFormElement>) {
+  function _legacyConfirmBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!form.name || !form.phone || !form.address || !form.date || !form.time) {
@@ -439,7 +433,7 @@ export function CustomerHome() {
     setSubmitMessage("Creating your booking...");
 
     try {
-      const response = await createApiClient({ token: authSession.token }).createBooking(payload);
+      const response = await createApiClient().createBooking(payload);
       const booking = response.data;
       const whatsappUrl = createWhatsappUrl(booking.bookingCode, payload);
       const result: BookingResult = {
@@ -494,7 +488,7 @@ export function CustomerHome() {
     setPaymentMessage("Creating secure Razorpay order...");
 
     try {
-      const orderResponse = await createApiClient({ token: authSession?.token }).createRazorpayOrder({ bookingCode: bookingResult.bookingCode });
+      const orderResponse = await createApiClient().createRazorpayOrder({ bookingCode: bookingResult.bookingCode });
       const order = orderResponse.data;
 
       if (!order.checkoutEnabled || !order.keyId) {
@@ -553,7 +547,7 @@ export function CustomerHome() {
     setPaymentMessage("Verifying payment...");
 
     try {
-      const verified = await createApiClient({ token: authSession?.token }).verifyRazorpayPayment({
+      const verified = await createApiClient().verifyRazorpayPayment({
         bookingCode: order.bookingCode,
         razorpayOrderId: response.razorpay_order_id,
         razorpayPaymentId: response.razorpay_payment_id,
@@ -1530,7 +1524,7 @@ function BookingHistory({ items }: { items: BookingHistoryItem[] }) {
   );
 }
 
-function LegacyBookingModal({
+function _LegacyBookingModal({
   cartItems,
   total,
   form,

@@ -3,6 +3,8 @@
 import { createApiClient } from "@the-wings/api-client";
 import type {
   AdminDashboard,
+  AuthSession,
+  AuthUser,
   Booking,
   BookingStatus,
   CrmNote,
@@ -13,10 +15,32 @@ import type {
   ServiceCategory,
   ServiceCreateInput
 } from "@the-wings/types";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type TabId = "dashboard" | "bookings" | "services" | "customers" | "leads" | "whatsapp";
 type DataMode = "loading" | "live" | "demo";
+type AuthMode = "checking" | "unauthenticated" | "forbidden" | "authenticated";
+
+type GoogleCredentialResponse = {
+  credential?: string;
+};
+
+type GoogleAccounts = {
+  id: {
+    initialize: (options: { client_id: string; callback: (response: GoogleCredentialResponse) => void }) => void;
+    renderButton: (element: HTMLElement, options: Record<string, string | number | boolean>) => void;
+  };
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: GoogleAccounts;
+    };
+  }
+}
+
+const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
 type ServiceForm = {
   id: string;
@@ -226,6 +250,8 @@ const initialLeadForm: LeadForm = {
 };
 
 export function AdminCrmDashboard() {
+  const [authMode, setAuthMode] = useState<AuthMode>("checking");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [mode, setMode] = useState<DataMode>("loading");
   const [notice, setNotice] = useState("Loading admin CRM...");
@@ -242,6 +268,35 @@ export function AdminCrmDashboard() {
   const [query, setQuery] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
+    async function restoreAdminSession() {
+      try {
+        const response = await createApiClient().getMe();
+        if (!mounted) return;
+        if (!isAdminUser(response.data)) {
+          setAuthMode("forbidden");
+          setAuthUser(response.data);
+          return;
+        }
+
+        setAuthUser(response.data);
+        setAuthMode("authenticated");
+      } catch {
+        if (!mounted) return;
+        setAuthMode("unauthenticated");
+        setAuthUser(null);
+      }
+    }
+
+    restoreAdminSession();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (authMode !== "authenticated") return;
     let mounted = true;
 
     async function loadAdminData() {
@@ -269,8 +324,8 @@ export function AdminCrmDashboard() {
         setNotice("Connected to backend API.");
       } catch {
         if (!mounted) return;
-        setMode("demo");
-        setNotice("API is offline, showing demo CRM data. Start the API with database env to manage live data.");
+        setMode("loading");
+        setNotice("Admin session is active, but live CRM data could not be loaded. Check backend deployment and role permissions.");
       }
     }
 
@@ -278,7 +333,7 @@ export function AdminCrmDashboard() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [authMode]);
 
   const filteredBookings = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -552,6 +607,47 @@ export function AdminCrmDashboard() {
     }
   }
 
+  function handleAdminSession(session: AuthSession) {
+    if (!isAdminUser(session.user)) {
+      setAuthUser(session.user);
+      setAuthMode("forbidden");
+      setNotice("This account is not allowed to access the admin CRM.");
+      return;
+    }
+
+    setAuthUser(session.user);
+    setAuthMode("authenticated");
+    setMode("loading");
+    setNotice("Admin session verified. Loading live CRM data...");
+  }
+
+  async function signOut() {
+    try {
+      await createApiClient().logout();
+    } catch {
+      // Clearing UI state is still safe if the network request fails.
+    }
+    setAuthUser(null);
+    setAuthMode("unauthenticated");
+    setMode("loading");
+    setNotice("Signed out.");
+  }
+
+  if (authMode !== "authenticated") {
+    return (
+      <AdminLoginScreen
+        mode={authMode}
+        user={authUser}
+        onSuccess={handleAdminSession}
+        onRetry={() => {
+          setAuthUser(null);
+          setAuthMode("unauthenticated");
+        }}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   return (
     <main className="admin-shell">
       <aside className="sidebar">
@@ -581,7 +677,12 @@ export function AdminCrmDashboard() {
             <div className="eyebrow">Operations CRM</div>
             <h1>Admin panel for bookings, services, customers, and leads.</h1>
           </div>
-          <div className={`mode-pill ${mode}`}>{mode === "live" ? "Live API" : mode === "loading" ? "Loading" : "Demo fallback"}</div>
+          <div className="topbar-actions">
+            <div className={`mode-pill ${mode}`}>{mode === "live" ? "Live API" : mode === "loading" ? "Loading" : "Demo fallback"}</div>
+            <button className="admin-user-pill" type="button" onClick={signOut}>
+              {authUser?.name || authUser?.email || authUser?.phone || "Admin"} · Sign out
+            </button>
+          </div>
         </header>
 
         <div className="notice-row">{notice}</div>
@@ -704,6 +805,205 @@ export function AdminCrmDashboard() {
       </section>
     </main>
   );
+}
+
+function isAdminUser(user: AuthUser) {
+  return user.role === "ADMIN" || user.role === "MANAGER";
+}
+
+function AdminLoginScreen({
+  mode,
+  user,
+  onSuccess,
+  onRetry,
+  onSignOut
+}: {
+  mode: AuthMode;
+  user: AuthUser | null;
+  onSuccess: (session: AuthSession) => void;
+  onRetry: () => void;
+  onSignOut: () => void | Promise<void>;
+}) {
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("Use an admin or manager account to continue.");
+  const [error, setError] = useState("");
+  const googleButtonRef = useRef<HTMLDivElement | null>(null);
+  const googleRenderedRef = useRef(false);
+
+  useEffect(() => {
+    if (!googleClientId || googleRenderedRef.current) return;
+
+    let active = true;
+    loadGoogleIdentity().then((loaded) => {
+      if (!active || !loaded || !window.google || !googleButtonRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: async (response) => {
+          if (!response.credential) {
+            setError("Google did not return a login credential.");
+            return;
+          }
+
+          setBusy(true);
+          setError("");
+          setMessage("Verifying Google account...");
+          try {
+            const result = await createApiClient().loginWithGoogle({ credential: response.credential });
+            onSuccess(result.data);
+          } catch {
+            setError("Google admin login failed. Check Google OAuth env and admin role.");
+          } finally {
+            setBusy(false);
+          }
+        }
+      });
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 320,
+        text: "continue_with",
+        shape: "pill"
+      });
+      googleRenderedRef.current = true;
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [onSuccess]);
+
+  async function requestOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (!/^[6-9]\d{9}$/.test(phone.trim())) {
+      setError("Enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("Sending OTP...");
+    try {
+      const response = await createApiClient().requestOtp({
+        phone: phone.trim(),
+        name: name.trim() || undefined
+      });
+      setOtpSent(true);
+      setMessage(response.data.debugOtp ? `OTP ready for local testing: ${response.data.debugOtp}` : response.data.message);
+    } catch {
+      setError("Could not request OTP. Check backend availability.");
+      setMessage("Use an admin or manager account to continue.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyOtp(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+
+    if (!/^\d{6}$/.test(code.trim())) {
+      setError("Enter the 6-digit OTP.");
+      return;
+    }
+
+    setBusy(true);
+    setMessage("Verifying OTP...");
+    try {
+      const response = await createApiClient().verifyOtp({
+        phone: phone.trim(),
+        code: code.trim(),
+        name: name.trim() || undefined
+      });
+      onSuccess(response.data);
+    } catch {
+      setError("Invalid OTP or this account is not configured.");
+      setMessage("Request a new OTP if needed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="admin-login-shell">
+      <section className="admin-login-panel">
+        <div className="brand login-brand">
+          <span>TWG</span>
+          <strong>The Wings Group</strong>
+        </div>
+        <div className="eyebrow">Protected CRM</div>
+        <h1>Sign in to manage bookings, services, customers, and leads.</h1>
+        {mode === "checking" ? (
+          <div className="notice-row">Checking admin session...</div>
+        ) : mode === "forbidden" ? (
+          <div className="auth-denied">
+            <strong>Admin access required</strong>
+            <span>{user?.email || user?.phone || "This account"} is signed in but does not have an admin or manager role.</span>
+            <div className="form-actions">
+              <button className="primary-button" type="button" onClick={onSignOut}>Sign out</button>
+              <button type="button" onClick={onRetry}>Try another account</button>
+            </div>
+          </div>
+        ) : (
+          <div className="admin-auth-grid">
+            <form className="admin-auth-card" onSubmit={otpSent ? verifyOtp : requestOtp}>
+              <h2>OTP Login</h2>
+              <p>{message}</p>
+              <label>
+                Name
+                <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Admin name" />
+              </label>
+              <label>
+                Mobile Number
+                <input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="tel" placeholder="10-digit mobile number" />
+              </label>
+              {otpSent && (
+                <label>
+                  OTP
+                  <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" placeholder="6-digit OTP" />
+                </label>
+              )}
+              {error && <div className="auth-error">{error}</div>}
+              <button className="primary-button" type="submit" disabled={busy}>
+                {busy ? "Please wait..." : otpSent ? "Verify OTP" : "Send OTP"}
+              </button>
+            </form>
+            <div className="admin-auth-card">
+              <h2>Google Login</h2>
+              <p>{googleClientId ? "Continue with an admin Google account." : "Add Google client ID env to enable Google login."}</p>
+              <div className="google-button-wrap" ref={googleButtonRef} />
+              {!googleClientId && <div className="auth-error">Google login is not configured yet.</div>}
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function loadGoogleIdentity() {
+  if (window.google?.accounts?.id) return Promise.resolve(true);
+
+  return new Promise<boolean>((resolve) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://accounts.google.com/gsi/client"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true), { once: true });
+      existing.addEventListener("error", () => resolve(false), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 }
 
 function MetricGrid({ dashboard }: { dashboard: AdminDashboard }) {

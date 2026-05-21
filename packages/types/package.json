@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit"
+    "lint": "eslint src --max-warnings=0",
+    "test": "echo \"No types tests configured yet\""
   },
   "devDependencies": {
     "typescript": "^5.7.2"

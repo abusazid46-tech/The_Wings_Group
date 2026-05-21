@@ -1,8 +1,10 @@
 import { Router } from "express";
 import { leadCreateSchema, leadUpdateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
+import { requireRoles } from "../middleware/auth.js";
 
 export const leadsRouter = Router();
+leadsRouter.use(...requireRoles("ADMIN", "MANAGER"));
 
 leadsRouter.get("/", async (_req, res, next) => {
   try {

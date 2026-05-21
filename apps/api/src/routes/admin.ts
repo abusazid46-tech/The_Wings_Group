@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { prisma } from "../db/prisma.js";
+import { requireRoles } from "../middleware/auth.js";
 
 export const adminRouter = Router();
+adminRouter.use(...requireRoles("ADMIN", "MANAGER"));
 
 type BookingForCustomer = Awaited<ReturnType<typeof loadBookingsForCustomers>>[number];
 

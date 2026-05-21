@@ -29,15 +29,18 @@ import type {
 type ApiClientOptions = {
   baseUrl: string;
   token?: string;
+  credentials?: RequestCredentials;
 };
 
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly token?: string;
+  private readonly credentials: RequestCredentials;
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.token = options.token;
+    this.credentials = options.credentials ?? "include";
   }
 
   async requestOtp(input: OtpRequestInput) {
@@ -63,6 +66,12 @@ export class ApiClient {
 
   async getMe() {
     return this.request<{ data: AuthSession["user"] }>("/auth/me");
+  }
+
+  async logout() {
+    return this.request<{ data: { ok: true } }>("/auth/logout", {
+      method: "POST"
+    });
   }
 
   async getServices(options?: { includeInactive?: boolean }) {
@@ -187,7 +196,8 @@ export class ApiClient {
 
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...init,
-      headers
+      headers,
+      credentials: this.credentials
     });
 
     if (!response.ok) {
@@ -205,6 +215,7 @@ export function createApiClient(options?: Partial<ApiClientOptions>) {
 
   return new ApiClient({
     baseUrl: options?.baseUrl ?? runtimeEnv.process?.env?.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
-    token: options?.token
+    token: options?.token,
+    credentials: options?.credentials
   });
 }

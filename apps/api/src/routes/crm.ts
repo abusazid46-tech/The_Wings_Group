@@ -1,9 +1,11 @@
 import { Router } from "express";
 import { crmNoteCreateSchema, whatsappMessageCreateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
+import { requireRoles } from "../middleware/auth.js";
 import { sendWhatsAppText } from "../services/whatsapp.js";
 
 export const crmRouter = Router();
+crmRouter.use(...requireRoles("ADMIN", "MANAGER"));
 
 crmRouter.get("/notes", async (_req, res, next) => {
   try {

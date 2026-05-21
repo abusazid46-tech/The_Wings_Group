@@ -3,6 +3,8 @@ import { Router } from "express";
 import { razorpayOrderCreateSchema, razorpayVerifySchema } from "@the-wings/validation";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
+import { canAccessUserResource, requireAuth } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 
 export const paymentsRouter = Router();
 
@@ -18,7 +20,7 @@ function createRazorpayAuthHeader() {
   return `Basic ${Buffer.from(`${env.RAZORPAY_KEY_ID}:${env.RAZORPAY_KEY_SECRET}`).toString("base64")}`;
 }
 
-paymentsRouter.post("/razorpay/order", async (req, res, next) => {
+paymentsRouter.post("/razorpay/order", rateLimit({ keyPrefix: "payment-order", windowMs: 15 * 60 * 1000, max: 20 }), requireAuth, async (req, res, next) => {
   try {
     const input = razorpayOrderCreateSchema.parse(req.body);
     const booking = await prisma.booking.findUnique({
@@ -28,6 +30,10 @@ paymentsRouter.post("/razorpay/order", async (req, res, next) => {
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    if (!canAccessUserResource(req, booking.userId)) {
+      return res.status(403).json({ error: "You do not have permission to pay for this booking" });
     }
 
     if (booking.totalAmount <= 0) {
@@ -125,7 +131,7 @@ paymentsRouter.post("/razorpay/order", async (req, res, next) => {
   }
 });
 
-paymentsRouter.post("/razorpay/verify", async (req, res, next) => {
+paymentsRouter.post("/razorpay/verify", rateLimit({ keyPrefix: "payment-verify", windowMs: 15 * 60 * 1000, max: 30 }), requireAuth, async (req, res, next) => {
   try {
     const input = razorpayVerifySchema.parse(req.body);
 
@@ -148,6 +154,10 @@ paymentsRouter.post("/razorpay/verify", async (req, res, next) => {
 
     if (!booking) {
       return res.status(404).json({ error: "Booking not found" });
+    }
+
+    if (!canAccessUserResource(req, booking.userId)) {
+      return res.status(403).json({ error: "You do not have permission to verify this payment" });
     }
 
     const payment = await prisma.payment.updateMany({

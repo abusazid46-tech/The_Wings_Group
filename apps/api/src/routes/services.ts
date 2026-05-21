@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { serviceCreateSchema, serviceUpdateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
+import { isStaffRole, optionalAuth, requireRoles } from "../middleware/auth.js";
 
 export const servicesRouter = Router();
 
@@ -32,10 +33,16 @@ servicesRouter.get("/categories", async (_req, res, next) => {
   }
 });
 
-servicesRouter.get("/", async (req, res, next) => {
+servicesRouter.get("/", optionalAuth, async (req, res, next) => {
   try {
+    const user = (req as typeof req & { authUser?: { role: "ADMIN" | "MANAGER" | "STAFF" | "CUSTOMER" } }).authUser;
+    const canSeeInactive = Boolean(user && isStaffRole(user.role));
+    if (req.query.includeInactive === "true" && !canSeeInactive) {
+      return res.status(403).json({ error: "You do not have permission to view inactive services" });
+    }
+
     const services = await prisma.service.findMany({
-      where: req.query.includeInactive === "true" ? undefined : { isActive: true },
+      where: req.query.includeInactive === "true" && canSeeInactive ? undefined : { isActive: true },
       orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }]
     });
     res.json({ data: services });
@@ -44,7 +51,7 @@ servicesRouter.get("/", async (req, res, next) => {
   }
 });
 
-servicesRouter.post("/", async (req, res, next) => {
+servicesRouter.post("/", ...requireRoles("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const input = serviceCreateSchema.parse(req.body);
     const service = await prisma.service.create({ data: input });
@@ -54,11 +61,11 @@ servicesRouter.post("/", async (req, res, next) => {
   }
 });
 
-servicesRouter.patch("/:id", async (req, res, next) => {
+servicesRouter.patch("/:id", ...requireRoles("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const input = serviceUpdateSchema.parse(req.body);
     const service = await prisma.service.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id ?? "") },
       data: input
     });
     res.json({ data: service });
@@ -67,10 +74,10 @@ servicesRouter.patch("/:id", async (req, res, next) => {
   }
 });
 
-servicesRouter.delete("/:id", async (req, res, next) => {
+servicesRouter.delete("/:id", ...requireRoles("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
     const service = await prisma.service.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id ?? "") },
       data: { isActive: false }
     });
     res.json({ data: service });

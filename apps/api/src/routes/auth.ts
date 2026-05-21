@@ -3,13 +3,16 @@ import type { User } from "@prisma/client";
 import { Router } from "express";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import {
   createJwt,
   createOtp,
+  clearSessionCookie,
   getAuthUserFromRequest,
   hashOtp,
   isSameHash,
   normalizePhone,
+  setSessionCookie,
   serializeUser
 } from "../services/auth.js";
 import { sendWhatsAppText } from "../services/whatsapp.js";
@@ -45,7 +48,12 @@ authRouter.get("/me", async (req, res, next) => {
   }
 });
 
-authRouter.post("/otp/request", async (req, res, next) => {
+authRouter.post("/logout", (_req, res) => {
+  clearSessionCookie(res);
+  return res.json({ data: { ok: true } });
+});
+
+authRouter.post("/otp/request", rateLimit({ keyPrefix: "otp-request", windowMs: 15 * 60 * 1000, max: 5 }), async (req, res, next) => {
   try {
     const input = otpRequestSchema.parse(req.body);
     const phone = normalizePhone(input.phone);
@@ -94,7 +102,7 @@ authRouter.post("/otp/request", async (req, res, next) => {
   }
 });
 
-authRouter.post("/otp/verify", async (req, res, next) => {
+authRouter.post("/otp/verify", rateLimit({ keyPrefix: "otp-verify", windowMs: 15 * 60 * 1000, max: 10 }), async (req, res, next) => {
   try {
     const input = otpVerifySchema.parse(req.body);
     const phone = normalizePhone(input.phone);
@@ -148,13 +156,15 @@ authRouter.post("/otp/verify", async (req, res, next) => {
       });
     });
 
-    return res.json({ data: sessionForUser(user) });
+    const session = sessionForUser(user);
+    setSessionCookie(res, session.token);
+    return res.json({ data: session });
   } catch (error) {
     return next(error);
   }
 });
 
-authRouter.post("/google", async (req, res, next) => {
+authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 * 60 * 1000, max: 20 }), async (req, res, next) => {
   try {
     if (!env.GOOGLE_CLIENT_ID) {
       return res.status(503).json({ error: "Google login is not configured." });
@@ -206,7 +216,9 @@ authRouter.post("/google", async (req, res, next) => {
           }
         });
 
-    return res.json({ data: sessionForUser(user) });
+    const session = sessionForUser(user);
+    setSessionCookie(res, session.token);
+    return res.json({ data: session });
   } catch (error) {
     return next(error);
   }

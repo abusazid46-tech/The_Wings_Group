@@ -1,6 +1,6 @@
 import type { User } from "@prisma/client";
 import crypto from "node:crypto";
-import type { Request } from "express";
+import type { Request, Response } from "express";
 import type { AuthUser } from "@the-wings/types";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
@@ -13,6 +13,7 @@ type JwtPayload = {
 };
 
 const sessionTtlSeconds = 60 * 60 * 24 * 30;
+export const authCookieName = "twg_session";
 
 function base64url(input: Buffer | string) {
   return Buffer.from(input).toString("base64url");
@@ -90,9 +91,44 @@ export function verifyJwt(token: string): JwtPayload | null {
   return payload;
 }
 
+function parseCookieHeader(cookieHeader?: string) {
+  if (!cookieHeader) return new Map<string, string>();
+
+  return new Map(
+    cookieHeader
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const [key, ...valueParts] = part.split("=");
+        return [key ?? "", decodeURIComponent(valueParts.join("="))] as const;
+      })
+  );
+}
+
+export function setSessionCookie(res: Response, token: string) {
+  res.cookie(authCookieName, token, {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+    maxAge: sessionTtlSeconds * 1000,
+    path: "/"
+  });
+}
+
+export function clearSessionCookie(res: Response) {
+  res.clearCookie(authCookieName, {
+    httpOnly: true,
+    secure: env.NODE_ENV === "production",
+    sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+    path: "/"
+  });
+}
+
 export async function getAuthUserFromRequest(req: Request) {
   const header = req.headers.authorization;
-  const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+  const cookieToken = parseCookieHeader(req.headers.cookie).get(authCookieName) ?? "";
+  const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : cookieToken;
   if (!token) return null;
 
   const payload = verifyJwt(token);

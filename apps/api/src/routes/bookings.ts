@@ -2,7 +2,8 @@ import { Router } from "express";
 import { bookingCreateSchema, bookingStatusUpdateSchema } from "@the-wings/validation";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
-import { getAuthUserFromRequest } from "../services/auth.js";
+import { AuthedRequest, canAccessUserResource, requireAuth, requireRoles } from "../middleware/auth.js";
+import { rateLimit } from "../middleware/rate-limit.js";
 import { sendWhatsAppText } from "../services/whatsapp.js";
 
 export const bookingsRouter = Router();
@@ -14,7 +15,7 @@ function createBookingCode() {
   return `TWG-${day}-${random}`;
 }
 
-bookingsRouter.get("/", async (_req, res, next) => {
+bookingsRouter.get("/", ...requireRoles("ADMIN", "MANAGER", "STAFF"), async (_req, res, next) => {
   try {
     const bookings = await prisma.booking.findMany({
       include: {
@@ -30,10 +31,11 @@ bookingsRouter.get("/", async (_req, res, next) => {
   }
 });
 
-bookingsRouter.get("/:bookingCode", async (req, res, next) => {
+bookingsRouter.get("/:bookingCode", requireAuth, async (req, res, next) => {
   try {
+    const bookingCode = String(req.params.bookingCode ?? "");
     const booking = await prisma.booking.findUnique({
-      where: { bookingCode: req.params.bookingCode },
+      where: { bookingCode },
       include: {
         items: true,
         payments: true
@@ -44,17 +46,21 @@ bookingsRouter.get("/:bookingCode", async (req, res, next) => {
       return res.status(404).json({ error: "Booking not found" });
     }
 
+    if (!canAccessUserResource(req, booking.userId)) {
+      return res.status(403).json({ error: "You do not have permission to access this booking" });
+    }
+
     return res.json({ data: booking });
   } catch (error) {
     return next(error);
   }
 });
 
-bookingsRouter.patch("/:bookingCode/status", async (req, res, next) => {
+bookingsRouter.patch("/:bookingCode/status", ...requireRoles("ADMIN", "MANAGER", "STAFF"), async (req, res, next) => {
   try {
     const input = bookingStatusUpdateSchema.parse(req.body);
     const booking = await prisma.booking.update({
-      where: { bookingCode: req.params.bookingCode },
+      where: { bookingCode: String(req.params.bookingCode ?? "") },
       data: {
         status: input.status,
         assignedStaffId: input.assignedStaffId,
@@ -77,11 +83,11 @@ bookingsRouter.patch("/:bookingCode/status", async (req, res, next) => {
   }
 });
 
-bookingsRouter.post("/", async (req, res, next) => {
+bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 * 60 * 1000, max: 20 }), requireAuth, async (req, res, next) => {
   try {
     const input = bookingCreateSchema.parse(req.body);
-    const authUser = await getAuthUserFromRequest(req);
-    const bookingUserId = authUser?.id;
+    const authUser = (req as AuthedRequest).authUser;
+    const bookingUserId = authUser.id;
 
     if (authUser) {
       await prisma.user

@@ -69,7 +69,7 @@ export type AuthUser = {
 };
 
 export type AuthSession = {
-  token: string;
+  token?: string;
   user: AuthUser;
 };
 

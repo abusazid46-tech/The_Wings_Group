@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --port 3000",
     "build": "next build",
-    "lint": "next lint",
+    "lint": "eslint src --max-warnings=0",
+    "test": "echo \"No web tests configured yet\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
