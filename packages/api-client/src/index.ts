@@ -32,6 +32,24 @@ type ApiClientOptions = {
   credentials?: RequestCredentials;
 };
 
+const deployedApiUrl = "https://the-wings-group.onrender.com";
+
+function getDefaultApiUrl() {
+  const runtimeEnv = globalThis as typeof globalThis & {
+    location?: Location;
+    process?: { env?: Record<string, string | undefined> };
+  };
+  const configuredUrl = runtimeEnv.process?.env?.NEXT_PUBLIC_API_URL;
+  if (configuredUrl) return configuredUrl;
+
+  const hostname = runtimeEnv.location?.hostname;
+  if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
+    return deployedApiUrl;
+  }
+
+  return "http://localhost:4000";
+}
+
 export class ApiClient {
   private readonly baseUrl: string;
   private readonly token?: string;
@@ -209,12 +227,8 @@ export class ApiClient {
 }
 
 export function createApiClient(options?: Partial<ApiClientOptions>) {
-  const runtimeEnv = globalThis as typeof globalThis & {
-    process?: { env?: Record<string, string | undefined> };
-  };
-
   return new ApiClient({
-    baseUrl: options?.baseUrl ?? runtimeEnv.process?.env?.NEXT_PUBLIC_API_URL ?? "http://localhost:4000",
+    baseUrl: options?.baseUrl ?? getDefaultApiUrl(),
     token: options?.token,
     credentials: options?.credentials
   });
