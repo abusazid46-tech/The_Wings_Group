@@ -201,6 +201,10 @@ export class ApiClient {
     return this.request<{ data: AdminDashboard }>("/admin/dashboard");
   }
 
+  getAdminEventsUrl() {
+    return `${this.baseUrl}/admin/events`;
+  }
+
   async getCustomers() {
     return this.request<{ data: CustomerSummary[] }>("/admin/customers");
   }

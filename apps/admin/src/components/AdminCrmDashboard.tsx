@@ -15,11 +15,52 @@ import type {
   ServiceCategory,
   ServiceCreateInput
 } from "@the-wings/types";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type TabId = "dashboard" | "bookings" | "services" | "customers" | "leads" | "whatsapp";
 type DataMode = "loading" | "live" | "demo";
 type AuthMode = "checking" | "unauthenticated" | "forbidden" | "authenticated";
+type LiveStatus = "idle" | "connecting" | "connected" | "syncing" | "reconnecting" | "offline";
+type ActivityTone = "info" | "success" | "warning" | "danger";
+type ActivityEvent = {
+  id: string;
+  title: string;
+  detail: string;
+  at: string;
+  tone: ActivityTone;
+};
+type AdminEventSnapshot = {
+  revision: string;
+  timestamp: string;
+  metrics: {
+    bookingCount: number;
+    pendingBookings: number;
+    activeServices: number;
+    openLeads: number;
+  };
+  latest: {
+    booking: {
+      bookingCode: string;
+      customerName: string;
+      status: BookingStatus;
+      totalAmount: number;
+      updatedAt: string;
+    } | null;
+    lead: {
+      id: string;
+      name?: string | null;
+      phone: string;
+      status: LeadStatus;
+      updatedAt: string;
+    } | null;
+    service: {
+      id: string;
+      name: string;
+      isActive: boolean;
+      updatedAt: string;
+    } | null;
+  };
+};
 
 type GoogleCredentialResponse = {
   credential?: string;
@@ -255,6 +296,9 @@ export function AdminCrmDashboard() {
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [mode, setMode] = useState<DataMode>("loading");
   const [notice, setNotice] = useState("Loading admin CRM...");
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
   const [dashboard, setDashboard] = useState<AdminDashboard>(fallbackDashboard);
   const [bookings, setBookings] = useState<Booking[]>(fallbackBookings);
   const [services, setServices] = useState<Service[]>(fallbackServices);
@@ -266,6 +310,62 @@ export function AdminCrmDashboard() {
   const [leadForm, setLeadForm] = useState<LeadForm>(initialLeadForm);
   const [noteForm, setNoteForm] = useState<NoteForm>({ title: "", body: "" });
   const [query, setQuery] = useState("");
+
+  const pushActivity = useCallback((event: Omit<ActivityEvent, "id" | "at"> & { at?: string }) => {
+    const entry: ActivityEvent = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      at: event.at ?? new Date().toISOString(),
+      title: event.title,
+      detail: event.detail,
+      tone: event.tone
+    };
+
+    setActivityEvents((current) => [entry, ...current].slice(0, 12));
+  }, []);
+
+  const loadAdminData = useCallback(async (reason = "manual") => {
+    try {
+      const api = createApiClient();
+      const [dashboardRes, bookingsRes, servicesRes, categoriesRes, customersRes, leadsRes, notesRes] = await Promise.all([
+        api.getAdminDashboard(),
+        api.getBookings(),
+        api.getServices({ includeInactive: true }),
+        api.getServiceCategories(),
+        api.getCustomers(),
+        api.getLeads(),
+        api.getCrmNotes()
+      ]);
+
+      setDashboard(dashboardRes.data);
+      setBookings(bookingsRes.data);
+      setServices(servicesRes.data);
+      const nextCategories = categoriesRes.data.length > 0 ? categoriesRes.data : fallbackCategories;
+      setCategories(nextCategories);
+      setServiceForm((current) =>
+        nextCategories.some((category) => category.id === current.categoryId)
+          ? current
+          : { ...current, categoryId: nextCategories[0]?.id ?? current.categoryId }
+      );
+      setCustomers(customersRes.data);
+      setLeads(leadsRes.data);
+      setNotes(notesRes.data);
+      setMode("live");
+      setLastSyncedAt(new Date().toISOString());
+      setNotice(reason === "event-stream" ? "Live update received. CRM data refreshed." : "Connected to backend API.");
+      adminConsole("info", "Admin CRM data loaded", {
+        reason,
+        bookings: bookingsRes.data.length,
+        services: servicesRes.data.length,
+        leads: leadsRes.data.length
+      });
+      return true;
+    } catch (error) {
+      setMode("loading");
+      setNotice(`Live CRM data could not be loaded. ${getApiErrorMessage(error)}`);
+      adminConsole("error", "Admin CRM data load failed", error);
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -299,47 +399,101 @@ export function AdminCrmDashboard() {
     if (authMode !== "authenticated") return;
     let mounted = true;
 
-    async function loadAdminData() {
-      try {
-        const api = createApiClient();
-        const [dashboardRes, bookingsRes, servicesRes, categoriesRes, customersRes, leadsRes, notesRes] = await Promise.all([
-          api.getAdminDashboard(),
-          api.getBookings(),
-          api.getServices({ includeInactive: true }),
-          api.getServiceCategories(),
-          api.getCustomers(),
-          api.getLeads(),
-          api.getCrmNotes()
-        ]);
-
-        if (!mounted) return;
-        setDashboard(dashboardRes.data);
-        setBookings(bookingsRes.data);
-        setServices(servicesRes.data);
-        const nextCategories = categoriesRes.data.length > 0 ? categoriesRes.data : fallbackCategories;
-        setCategories(nextCategories);
-        setServiceForm((current) =>
-          nextCategories.some((category) => category.id === current.categoryId)
-            ? current
-            : { ...current, categoryId: nextCategories[0]?.id ?? current.categoryId }
-        );
-        setCustomers(customersRes.data);
-        setLeads(leadsRes.data);
-        setNotes(notesRes.data);
-        setMode("live");
-        setNotice("Connected to backend API.");
-      } catch {
-        if (!mounted) return;
-        setMode("loading");
-        setNotice("Admin session is active, but live CRM data could not be loaded. Check backend deployment and role permissions.");
-      }
-    }
-
-    loadAdminData();
+    loadAdminData("initial").then((ok) => {
+      if (!mounted || !ok) return;
+      pushActivity({
+        title: "CRM data connected",
+        detail: "Bookings, services, customers, leads, and notes are loaded from the backend.",
+        tone: "success"
+      });
+    });
     return () => {
       mounted = false;
     };
-  }, [authMode]);
+  }, [authMode, loadAdminData, pushActivity]);
+
+  useEffect(() => {
+    if (authMode !== "authenticated") return;
+
+    const api = createApiClient();
+    const source = new EventSource(api.getAdminEventsUrl(), { withCredentials: true });
+    let currentRevision = "";
+    let reconnectNoticeShown = false;
+
+    setLiveStatus("connecting");
+    adminConsole("info", "Opening admin event stream", { url: api.getAdminEventsUrl() });
+
+    source.addEventListener("connected", (event) => {
+      const snapshot = parseAdminEventSnapshot(event);
+      if (!snapshot) return;
+      currentRevision = snapshot.revision;
+      reconnectNoticeShown = false;
+      setLiveStatus("connected");
+      setLastSyncedAt(snapshot.timestamp);
+      pushActivity({
+        title: "Live event stream connected",
+        detail: summarizeAdminSnapshot(snapshot),
+        tone: "success",
+        at: snapshot.timestamp
+      });
+      adminConsole("info", "Admin event stream connected", snapshot);
+    });
+
+    source.addEventListener("admin:update", (event) => {
+      const snapshot = parseAdminEventSnapshot(event);
+      if (!snapshot || snapshot.revision === currentRevision) return;
+      currentRevision = snapshot.revision;
+      reconnectNoticeShown = false;
+      setLiveStatus("syncing");
+      setLastSyncedAt(snapshot.timestamp);
+      pushActivity({
+        title: "Live CRM update received",
+        detail: summarizeAdminSnapshot(snapshot),
+        tone: "info",
+        at: snapshot.timestamp
+      });
+      adminConsole("info", "Admin live update received", snapshot);
+      loadAdminData("event-stream").then(() => setLiveStatus("connected"));
+    });
+
+    source.addEventListener("heartbeat", (event) => {
+      const heartbeat = parseAdminHeartbeat(event);
+      if (!heartbeat) return;
+      setLastSyncedAt(heartbeat.timestamp);
+      if (source.readyState === EventSource.OPEN) setLiveStatus("connected");
+    });
+
+    source.addEventListener("admin:error", (event) => {
+      const heartbeat = parseAdminHeartbeat(event);
+      setLiveStatus("reconnecting");
+      pushActivity({
+        title: "Live stream backend warning",
+        detail: "The API event stream reported a polling error and will retry automatically.",
+        tone: "warning",
+        at: heartbeat?.timestamp
+      });
+      adminConsole("warn", "Admin event stream backend warning", event);
+    });
+
+    source.onerror = (error) => {
+      setLiveStatus("reconnecting");
+      adminConsole("warn", "Admin event stream interrupted. Browser will retry automatically.", error);
+      if (!reconnectNoticeShown) {
+        reconnectNoticeShown = true;
+        pushActivity({
+          title: "Live connection interrupted",
+          detail: "The browser is reconnecting to the admin event stream.",
+          tone: "warning"
+        });
+      }
+    };
+
+    return () => {
+      source.close();
+      setLiveStatus("offline");
+      adminConsole("info", "Admin event stream closed");
+    };
+  }, [authMode, loadAdminData, pushActivity]);
 
   const filteredBookings = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -406,9 +560,16 @@ export function AdminCrmDashboard() {
       upsertService(response.data);
       setMode("live");
       setNotice(serviceForm.id ? "Service updated." : "Service created.");
+      pushActivity({
+        title: serviceForm.id ? "Service updated" : "Service created",
+        detail: `${response.data.name} is ${response.data.isActive ? "active" : "inactive"} at Rs. ${response.data.basePrice.toLocaleString()}.`,
+        tone: "success"
+      });
+      adminConsole("info", serviceForm.id ? "Service updated" : "Service created", response.data);
     } catch (error) {
       setMode("loading");
       setNotice(`Service was not saved. ${getApiErrorMessage(error)}`);
+      adminConsole("error", "Service save failed", error);
       return;
     }
 
@@ -421,9 +582,16 @@ export function AdminCrmDashboard() {
       upsertService(response.data);
       setMode("live");
       setNotice("Service disabled.");
+      pushActivity({
+        title: "Service disabled",
+        detail: `${service.name} is now hidden from customer browsing.`,
+        tone: "warning"
+      });
+      adminConsole("warn", "Service disabled", response.data);
     } catch (error) {
       setMode("loading");
       setNotice(`Service was not disabled. ${getApiErrorMessage(error)}`);
+      adminConsole("error", "Service disable failed", error);
     }
   }
 
@@ -458,10 +626,21 @@ export function AdminCrmDashboard() {
       replaceBooking(response.data);
       setMode("live");
       setNotice(`Booking ${booking.bookingCode} moved to ${status}.`);
+      pushActivity({
+        title: "Booking status changed",
+        detail: `${booking.bookingCode} moved to ${status}.`,
+        tone: "info"
+      });
+      adminConsole("info", "Booking status changed", response.data);
     } catch {
       replaceBooking({ ...booking, status, updatedAt: new Date().toISOString() });
       setMode("demo");
       setNotice("API offline. Booking status changed in local preview.");
+      pushActivity({
+        title: "Booking status changed locally",
+        detail: `${booking.bookingCode} changed in preview only. Backend did not confirm it.`,
+        tone: "warning"
+      });
     }
   }
 
@@ -495,6 +674,12 @@ export function AdminCrmDashboard() {
       upsertLead(response.data);
       setMode("live");
       setNotice(leadForm.id ? "Lead updated." : "Lead created.");
+      pushActivity({
+        title: leadForm.id ? "Lead updated" : "Lead created",
+        detail: `${response.data.name || response.data.phone} is now ${response.data.status}.`,
+        tone: "success"
+      });
+      adminConsole("info", leadForm.id ? "Lead updated" : "Lead created", response.data);
     } catch {
       const lead: Lead = {
         id: leadForm.id || `local-lead-${Date.now()}`,
@@ -510,6 +695,11 @@ export function AdminCrmDashboard() {
       upsertLead(lead);
       setMode("demo");
       setNotice("API offline. Lead change is previewed locally.");
+      pushActivity({
+        title: "Lead preview saved",
+        detail: `${lead.name || lead.phone} is local only because the API request failed.`,
+        tone: "warning"
+      });
     }
 
     setLeadForm(initialLeadForm);
@@ -521,10 +711,21 @@ export function AdminCrmDashboard() {
       upsertLead(response.data);
       setMode("live");
       setNotice(`Lead moved to ${status}.`);
+      pushActivity({
+        title: "Lead status changed",
+        detail: `${response.data.name || response.data.phone} moved to ${status}.`,
+        tone: "info"
+      });
+      adminConsole("info", "Lead status changed", response.data);
     } catch {
       upsertLead({ ...lead, status, updatedAt: new Date().toISOString() });
       setMode("demo");
       setNotice("API offline. Lead status changed in local preview.");
+      pushActivity({
+        title: "Lead status changed locally",
+        detail: `${lead.name || lead.phone} changed in preview only. Backend did not confirm it.`,
+        tone: "warning"
+      });
     }
   }
 
@@ -533,6 +734,12 @@ export function AdminCrmDashboard() {
       await createApiClient().deleteLead(lead.id);
       setMode("live");
       setNotice("Lead deleted.");
+      pushActivity({
+        title: "Lead deleted",
+        detail: `${lead.name || lead.phone} was removed from the CRM pipeline.`,
+        tone: "warning"
+      });
+      adminConsole("warn", "Lead deleted", lead);
     } catch {
       setMode("demo");
       setNotice("API offline. Lead removed from local preview.");
@@ -572,6 +779,12 @@ export function AdminCrmDashboard() {
       setNotes((current) => [response.data, ...current]);
       setMode("live");
       setNotice("CRM note saved.");
+      pushActivity({
+        title: "CRM note saved",
+        detail: response.data.title,
+        tone: "success"
+      });
+      adminConsole("info", "CRM note saved", response.data);
     } catch {
       setNotes((current) => [
         {
@@ -584,6 +797,11 @@ export function AdminCrmDashboard() {
       ]);
       setMode("demo");
       setNotice("API offline. Note saved in local preview.");
+      pushActivity({
+        title: "CRM note saved locally",
+        detail: noteForm.title,
+        tone: "warning"
+      });
     }
 
     setNoteForm({ title: "", body: "" });
@@ -598,9 +816,20 @@ export function AdminCrmDashboard() {
       await createApiClient().logWhatsappMessage({ phone: cleanPhone, message, template: "admin_follow_up" });
       setMode("live");
       setNotice("WhatsApp message logged.");
+      pushActivity({
+        title: "WhatsApp message logged",
+        detail: `Outbound message opened for ${cleanPhone}.`,
+        tone: "success"
+      });
+      adminConsole("info", "WhatsApp message logged", { phone: cleanPhone, message });
     } catch {
       setMode("demo");
       setNotice("WhatsApp opened. API offline, so message log is local-only for now.");
+      pushActivity({
+        title: "WhatsApp opened without API log",
+        detail: `Message opened for ${cleanPhone}, but the backend log failed.`,
+        tone: "warning"
+      });
     }
   }
 
@@ -616,6 +845,17 @@ export function AdminCrmDashboard() {
     setAuthMode("authenticated");
     setMode("loading");
     setNotice("Admin session verified. Loading live CRM data...");
+  }
+
+  async function refreshAdminData() {
+    setLiveStatus("syncing");
+    const ok = await loadAdminData("manual-refresh");
+    setLiveStatus(ok ? "connected" : "reconnecting");
+    pushActivity({
+      title: ok ? "Manual refresh completed" : "Manual refresh failed",
+      detail: ok ? "Admin CRM data was refreshed from the backend." : "Check the API connection, session, and deployment logs.",
+      tone: ok ? "success" : "danger"
+    });
   }
 
   async function signOut() {
@@ -675,6 +915,10 @@ export function AdminCrmDashboard() {
             <h1>Admin panel for bookings, services, customers, and leads.</h1>
           </div>
           <div className="topbar-actions">
+            <div className={`live-pill ${liveStatus}`}>
+              <span />
+              {getLiveStatusLabel(liveStatus)}
+            </div>
             <div className={`mode-pill ${mode}`}>{mode === "live" ? "Live API" : mode === "loading" ? "Loading" : "Demo fallback"}</div>
             <button className="admin-user-pill" type="button" onClick={signOut}>
               {authUser?.name || authUser?.email || authUser?.phone || "Admin"} · Sign out
@@ -682,16 +926,21 @@ export function AdminCrmDashboard() {
           </div>
         </header>
 
-        <div className="notice-row">{notice}</div>
+        <div className="notice-row">
+          <span>{notice}</span>
+          {lastSyncedAt && <strong>Last sync {formatRelativeTime(lastSyncedAt)}</strong>}
+        </div>
 
         <div className="toolbar">
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search bookings, customers, leads..." />
+          <button type="button" onClick={refreshAdminData}>Refresh Live Data</button>
           <button type="button" onClick={() => setActiveTab("services")}>Add Service</button>
           <button type="button" onClick={() => setActiveTab("leads")}>Add Lead</button>
         </div>
 
         {activeTab === "dashboard" && (
           <>
+            <LiveOpsBar liveStatus={liveStatus} lastSyncedAt={lastSyncedAt} activityEvents={activityEvents} onRefresh={refreshAdminData} />
             <MetricGrid dashboard={dashboard} />
             <div className="work-grid">
               <section className="panel">
@@ -702,6 +951,7 @@ export function AdminCrmDashboard() {
                 <PanelHead title="Hot Leads" action="Open CRM" onAction={() => setActiveTab("leads")} />
                 <LeadList leads={dashboard.hotLeads} onEdit={editLead} onStatusChange={updateLeadStatus} onWhatsapp={sendWhatsapp} />
               </section>
+              <ActivityFeed events={activityEvents} />
             </div>
           </>
         )}
@@ -1001,6 +1251,59 @@ function loadGoogleIdentity() {
     script.onerror = () => resolve(false);
     document.body.appendChild(script);
   });
+}
+
+function LiveOpsBar({
+  liveStatus,
+  lastSyncedAt,
+  activityEvents,
+  onRefresh
+}: {
+  liveStatus: LiveStatus;
+  lastSyncedAt: string | null;
+  activityEvents: ActivityEvent[];
+  onRefresh: () => void | Promise<void>;
+}) {
+  const latestEvent = activityEvents[0];
+
+  return (
+    <section className="live-ops-bar">
+      <div className="live-ops-primary">
+        <div className={`live-dot ${liveStatus}`} />
+        <div>
+          <strong>{getLiveStatusLabel(liveStatus)}</strong>
+          <span>{lastSyncedAt ? `Last backend sync ${formatRelativeTime(lastSyncedAt)}` : "Waiting for backend event stream."}</span>
+        </div>
+      </div>
+      <div className="live-ops-secondary">
+        <span>{latestEvent ? latestEvent.detail : "No live events received in this browser session yet."}</span>
+        <button type="button" onClick={onRefresh}>Force Sync</button>
+      </div>
+    </section>
+  );
+}
+
+function ActivityFeed({ events }: { events: ActivityEvent[] }) {
+  return (
+    <section className="panel activity-panel">
+      <PanelHead title="Live Event Feed" subtitle="Browser event listener output from the protected admin stream." />
+      {events.length === 0 ? (
+        <div className="empty-activity">Waiting for admin events.</div>
+      ) : (
+        <div className="activity-list">
+          {events.map((event) => (
+            <div className={`activity-row ${event.tone}`} key={event.id}>
+              <div>
+                <strong>{event.title}</strong>
+                <span>{event.detail}</span>
+              </div>
+              <small>{formatRelativeTime(event.at)}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function MetricGrid({ dashboard }: { dashboard: AdminDashboard }) {
@@ -1309,6 +1612,86 @@ function getApiErrorMessage(error: unknown) {
   if (error instanceof ApiClientError) return error.message;
   if (error instanceof Error) return error.message;
   return "Check backend/database connection and try again.";
+}
+
+function parseAdminEventSnapshot(event: Event) {
+  try {
+    const messageEvent = event as MessageEvent<string>;
+    const parsed = JSON.parse(messageEvent.data) as AdminEventSnapshot;
+    return parsed.revision && parsed.timestamp ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function parseAdminHeartbeat(event: Event) {
+  try {
+    const messageEvent = event as MessageEvent<string>;
+    const parsed = JSON.parse(messageEvent.data) as { timestamp?: string };
+    return parsed.timestamp ? { timestamp: parsed.timestamp } : null;
+  } catch {
+    return null;
+  }
+}
+
+function summarizeAdminSnapshot(snapshot: AdminEventSnapshot) {
+  const parts = [
+    `${snapshot.metrics.pendingBookings} pending bookings`,
+    `${snapshot.metrics.activeServices} active services`,
+    `${snapshot.metrics.openLeads} open leads`
+  ];
+
+  if (snapshot.latest.booking) {
+    parts.push(`latest booking ${snapshot.latest.booking.bookingCode} is ${snapshot.latest.booking.status}`);
+  } else if (snapshot.latest.service) {
+    parts.push(`latest service ${snapshot.latest.service.name}`);
+  } else if (snapshot.latest.lead) {
+    parts.push(`latest lead ${snapshot.latest.lead.name || snapshot.latest.lead.phone}`);
+  }
+
+  return parts.join(" · ");
+}
+
+function getLiveStatusLabel(status: LiveStatus) {
+  if (status === "connected") return "Live events connected";
+  if (status === "syncing") return "Syncing live data";
+  if (status === "reconnecting") return "Reconnecting events";
+  if (status === "offline") return "Events offline";
+  if (status === "connecting") return "Connecting events";
+  return "Events idle";
+}
+
+function formatRelativeTime(value: string) {
+  const date = new Date(value);
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function adminConsole(level: "info" | "warn" | "error", message: string, data?: unknown) {
+  if (typeof window === "undefined") return;
+  const payload = data === undefined ? "" : data;
+  if (level === "error") {
+    console.error(`[TWG Admin] ${message}`, payload);
+    return;
+  }
+
+  if (level === "warn") {
+    console.warn(`[TWG Admin] ${message}`, payload);
+    return;
+  }
+
+  console.info(`[TWG Admin] ${message}`, payload);
 }
 
 function formatDate(value: string) {
