@@ -44,6 +44,7 @@ type ApiErrorBody = {
 };
 
 const deployedApiUrl = "https://the-wings-group.onrender.com";
+const localApiUrl = "http://localhost:4000";
 
 export class ApiClientError extends Error {
   readonly status: number;
@@ -58,19 +59,35 @@ export class ApiClientError extends Error {
 }
 
 function getDefaultApiUrl() {
-  const runtimeEnv = globalThis as typeof globalThis & {
-    location?: Location;
-    process?: { env?: Record<string, string | undefined> };
-  };
-  const configuredUrl = runtimeEnv.process?.env?.NEXT_PUBLIC_API_URL;
+  const configuredUrl = getConfiguredApiUrl();
   if (configuredUrl) return configuredUrl;
 
-  const hostname = runtimeEnv.location?.hostname;
+  const hostname = globalThis.location?.hostname;
   if (hostname && hostname !== "localhost" && hostname !== "127.0.0.1") {
     return deployedApiUrl;
   }
 
-  return "http://localhost:4000";
+  return localApiUrl;
+}
+
+function getConfiguredApiUrl() {
+  const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, "");
+  if (!configuredUrl || shouldIgnoreConfiguredApiUrl(configuredUrl)) return undefined;
+  return configuredUrl;
+}
+
+function shouldIgnoreConfiguredApiUrl(configuredUrl: string) {
+  try {
+    const configuredHostname = new URL(configuredUrl).hostname;
+    const currentHostname = globalThis.location?.hostname;
+    const isCurrentPageOrigin = Boolean(currentHostname && configuredHostname === currentHostname);
+    const isFrontendVercelUrl = configuredHostname.endsWith(".vercel.app");
+    const isLocalApiInProduction = Boolean(currentHostname && currentHostname !== "localhost" && currentHostname !== "127.0.0.1" && configuredHostname === "localhost");
+
+    return isCurrentPageOrigin || isFrontendVercelUrl || isLocalApiInProduction;
+  } catch {
+    return true;
+  }
 }
 
 export class ApiClient {
