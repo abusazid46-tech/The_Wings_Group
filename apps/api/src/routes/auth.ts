@@ -3,7 +3,9 @@ import { Prisma, type User } from "@prisma/client";
 import { Router } from "express";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
+import type { RequestWithId } from "../middleware/request-logger.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { logger } from "../services/logger.js";
 import {
   createJwt,
   createOtp,
@@ -164,7 +166,7 @@ authRouter.post("/otp/verify", rateLimit({ keyPrefix: "otp-verify", windowMs: 15
   }
 });
 
-authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 * 60 * 1000, max: 20 }), async (req, res, next) => {
+authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 * 60 * 1000, max: 20 }), async (req, res) => {
   try {
     if (!env.GOOGLE_CLIENT_ID) {
       return res.status(503).json({ error: "Google login is not configured." });
@@ -200,6 +202,12 @@ authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 *
     }
 
     const existingUser = googleUser ?? emailUser;
+    if (existingUser?.googleId && existingUser.googleId !== tokenInfo.sub) {
+      return res.status(409).json({
+        error: "This email is already linked to a different Google account. Ask admin to verify the customer record in Supabase."
+      });
+    }
+
     const user = existingUser
       ? await prisma.user.update({
           where: { id: existingUser.id },
@@ -238,8 +246,29 @@ authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 *
           error: "Database schema is not up to date. Run Prisma migrate deploy on Render."
         });
       }
+
+      logger.error("Google login Prisma error", {
+        requestId: (req as RequestWithId).requestId,
+        code: error.code,
+        meta: error.meta
+      });
+
+      return res.status(503).json({
+        error: "Database error while signing in with Google.",
+        code: error.code,
+        requestId: (req as RequestWithId).requestId
+      });
     }
 
-    return next(error);
+    logger.error("Google login unexpected error", {
+      requestId: (req as RequestWithId).requestId,
+      error
+    });
+
+    return res.status(500).json({
+      error: "Google login failed on the backend.",
+      detail: error instanceof Error ? error.message : "Unknown error",
+      requestId: (req as RequestWithId).requestId
+    });
   }
 });
