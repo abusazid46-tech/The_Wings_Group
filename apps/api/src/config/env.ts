@@ -21,6 +21,32 @@ const envSchema = z.object({
 
 export const env = envSchema.parse(process.env);
 
-export const corsOrigins = env.CORS_ORIGIN.split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+const requiredCorsOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "https://the-wings-group1.vercel.app",
+  "https://the-wings-group-admin.vercel.app"
+];
+
+function normalizeOrigin(origin: string) {
+  return origin.trim().replace(/^["']|["']$/g, "").replace(/\/$/, "");
+}
+
+export const corsOrigins = Array.from(
+  new Set([
+    ...requiredCorsOrigins,
+    ...env.CORS_ORIGIN.split(",")
+      .map(normalizeOrigin)
+      .filter(Boolean)
+  ])
+);
+
+export function isCorsOriginAllowed(origin?: string) {
+  if (!origin) return true;
+  const normalizedOrigin = normalizeOrigin(origin);
+  try {
+    return corsOrigins.includes(normalizedOrigin) || /\.vercel\.app$/.test(new URL(normalizedOrigin).hostname);
+  } catch {
+    return false;
+  }
+}

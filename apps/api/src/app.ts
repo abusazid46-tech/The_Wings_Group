@@ -2,7 +2,7 @@ import cors from "cors";
 import express from "express";
 import helmet from "helmet";
 import { ZodError } from "zod";
-import { corsOrigins } from "./config/env.js";
+import { isCorsOriginAllowed } from "./config/env.js";
 import { requestLogger, type RequestWithId } from "./middleware/request-logger.js";
 import { adminRouter } from "./routes/admin.js";
 import { authRouter } from "./routes/auth.js";
@@ -21,7 +21,9 @@ export function createApp() {
   app.use(helmet());
   app.use(
     cors({
-      origin: corsOrigins,
+      origin(origin, callback) {
+        callback(null, isCorsOriginAllowed(origin));
+      },
       credentials: true
     })
   );
