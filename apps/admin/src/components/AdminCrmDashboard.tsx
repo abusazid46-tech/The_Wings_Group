@@ -316,7 +316,13 @@ export function AdminCrmDashboard() {
         setDashboard(dashboardRes.data);
         setBookings(bookingsRes.data);
         setServices(servicesRes.data);
-        setCategories(categoriesRes.data.length > 0 ? categoriesRes.data : fallbackCategories);
+        const nextCategories = categoriesRes.data.length > 0 ? categoriesRes.data : fallbackCategories;
+        setCategories(nextCategories);
+        setServiceForm((current) =>
+          nextCategories.some((category) => category.id === current.categoryId)
+            ? current
+            : { ...current, categoryId: nextCategories[0]?.id ?? current.categoryId }
+        );
         setCustomers(customersRes.data);
         setLeads(leadsRes.data);
         setNotes(notesRes.data);
@@ -372,7 +378,9 @@ export function AdminCrmDashboard() {
 
   async function saveService(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const categoryId = serviceForm.categoryId || categories[0]?.id || fallbackCategories[0]?.id || "";
+    const categoryId = categories.some((category) => category.id === serviceForm.categoryId)
+      ? serviceForm.categoryId
+      : categories[0]?.id || fallbackCategories[0]?.id || "";
     const payload: ServiceCreateInput = {
       categoryId,
       name: serviceForm.name.trim(),
@@ -396,22 +404,9 @@ export function AdminCrmDashboard() {
       setMode("live");
       setNotice(serviceForm.id ? "Service updated." : "Service created.");
     } catch {
-      const localService: Service = {
-        id: serviceForm.id || `local-service-${Date.now()}`,
-        categoryId: payload.categoryId,
-        name: payload.name,
-        slug: payload.slug,
-        description: payload.description,
-        icon: payload.icon,
-        imageUrl: null,
-        basePrice: payload.basePrice,
-        durationMin: payload.durationMin,
-        sortOrder: services.length + 1,
-        isActive: payload.isActive ?? true
-      };
-      upsertService(localService);
-      setMode("demo");
-      setNotice("API offline. Service change is previewed locally.");
+      setMode("loading");
+      setNotice("Service was not saved to the database. Check backend/database connection before adding it again.");
+      return;
     }
 
     setServiceForm({ ...initialServiceForm, categoryId });
@@ -424,9 +419,8 @@ export function AdminCrmDashboard() {
       setMode("live");
       setNotice("Service disabled.");
     } catch {
-      upsertService({ ...service, isActive: false });
-      setMode("demo");
-      setNotice("API offline. Service disabled in local preview.");
+      setMode("loading");
+      setNotice("Service was not disabled in the database. Check backend/database connection and try again.");
     }
   }
 

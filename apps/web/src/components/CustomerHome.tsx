@@ -1,7 +1,15 @@
 "use client";
 
 import { createApiClient } from "@the-wings/api-client";
-import type { AuthSession, Booking, BookingCreateInput, PaymentMode, RazorpayOrderResponse } from "@the-wings/types";
+import type {
+  AuthSession,
+  Booking,
+  BookingCreateInput,
+  PaymentMode,
+  RazorpayOrderResponse,
+  Service as ApiService,
+  ServiceCategory as ApiServiceCategory
+} from "@the-wings/types";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
@@ -112,7 +120,8 @@ export function CustomerHome() {
     address: "Agartala, Tripura"
   });
   const [category, setCategory] = useState<"all" | ServiceCategoryId>("all");
-  const [cart, setCart] = useState<Record<number, CartItem>>({});
+  const [cart, setCart] = useState<Record<string, CartItem>>({});
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceItem[]>(services);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState<BookingFormErrors>({});
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
@@ -168,6 +177,37 @@ export function CustomerHome() {
   useEffect(() => {
     let mounted = true;
 
+    async function loadServiceCatalog() {
+      try {
+        const api = createApiClient();
+        const [servicesResponse, categoriesResponse] = await Promise.all([
+          api.getServices(),
+          api.getServiceCategories().catch(() => ({ data: [] as ApiServiceCategory[] }))
+        ]);
+        if (!mounted) return;
+
+        const categoryMap = new Map(categoriesResponse.data.map((item) => [item.id, item]));
+        const mappedServices = servicesResponse.data.filter((service) => service.isActive).map((service) => mapApiServiceToServiceItem(service, categoryMap));
+        if (mappedServices.length > 0) {
+          setServiceCatalog(mappedServices);
+        } else {
+          setServiceCatalog(services);
+        }
+      } catch {
+        if (!mounted) return;
+        setServiceCatalog(services);
+      }
+    }
+
+    loadServiceCatalog();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
     async function restoreSession() {
       try {
         const response = await createApiClient().getMe();
@@ -187,17 +227,17 @@ export function CustomerHome() {
 
   const filteredServices = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return services.filter((service) => {
+    return serviceCatalog.filter((service) => {
       const matchesCategory = category === "all" || service.category === category;
       const matchesSearch =
         !query ||
         service.name.toLowerCase().includes(query) ||
         service.description.toLowerCase().includes(query) ||
-        categoryLabels[service.category].toLowerCase().includes(query);
+        (service.categoryLabel ?? categoryLabels[service.category]).toLowerCase().includes(query);
 
       return matchesCategory && matchesSearch;
     });
-  }, [category, searchQuery]);
+  }, [category, searchQuery, serviceCatalog]);
 
   const cartItems = Object.values(cart);
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -205,34 +245,36 @@ export function CustomerHome() {
 
   function addService(service: ServiceItem) {
     setCart((current) => {
-      const existing = current[service.id];
+      const cartKey = String(service.id);
+      const existing = current[cartKey];
       return {
         ...current,
-        [service.id]: existing ? { ...existing, quantity: existing.quantity + 1 } : { ...service, quantity: 1 }
+        [cartKey]: existing ? { ...existing, quantity: existing.quantity + 1 } : { ...service, quantity: 1 }
       };
     });
     setFormErrors((current) => ({ ...current, cart: undefined }));
   }
 
-  function updateCartQuantity(serviceId: number, quantity: number) {
+  function updateCartQuantity(serviceId: ServiceItem["id"], quantity: number) {
     setCart((current) => {
-      const existing = current[serviceId];
+      const cartKey = String(serviceId);
+      const existing = current[cartKey];
       if (!existing) return current;
 
       if (quantity <= 0) {
         const next = { ...current };
-        delete next[serviceId];
+        delete next[cartKey];
         return next;
       }
 
       return {
         ...current,
-        [serviceId]: { ...existing, quantity }
+        [cartKey]: { ...existing, quantity }
       };
     });
   }
 
-  function removeService(serviceId: number) {
+  function removeService(serviceId: ServiceItem["id"]) {
     updateCartQuantity(serviceId, 0);
   }
 
@@ -264,9 +306,9 @@ export function CustomerHome() {
     }
 
     const service =
-      services.find((item) => item.name.toLowerCase().includes(query.toLowerCase().split(" ")[0] ?? query.toLowerCase())) ??
+      serviceCatalog.find((item) => item.name.toLowerCase().includes(query.toLowerCase().split(" ")[0] ?? query.toLowerCase())) ??
       ({
-        id: 999,
+        id: `quick-${slugifyLabel(query)}`,
         category: "deep",
         iconClass: "bi-stars",
         name: query,
@@ -274,7 +316,7 @@ export function CustomerHome() {
         price: fallbackPrice
       } satisfies ServiceItem);
 
-    setCart({ [service.id]: { ...service, quantity: 1 } });
+    setCart({ [String(service.id)]: { ...service, quantity: 1 } });
     resetBookingState();
     prepareBookingForm();
     setBookingModalOpen(true);
@@ -865,7 +907,7 @@ function ServicesSection({
   searchQuery: string;
   onCategoryChange: (category: "all" | ServiceCategoryId) => void;
   services: ServiceItem[];
-  cart: Record<number, CartItem>;
+  cart: Record<string, CartItem>;
   onAdd: (service: ServiceItem) => void;
   onClearSearch: () => void;
 }) {
@@ -898,15 +940,15 @@ function ServicesSection({
               <div className="service-card">
                 <div className="card-icon-wrap">
                   <i className={`bi ${service.iconClass}`} style={{ fontSize: 52 }} />
-                  <span className="card-category-badge">{categoryLabels[service.category]}</span>
+                  <span className="card-category-badge">{service.categoryLabel ?? categoryLabels[service.category]}</span>
                 </div>
                 <div className="card-body-custom">
                   <div className="card-service-name">{service.name}</div>
                   <div className="card-desc">{service.description}</div>
                   <div className="mt-3 d-flex justify-content-between align-items-end">
                     <div className="card-price">₹{service.price.toLocaleString()}<span>/visit</span></div>
-                    <button className={`btn-add-cart ${cart[service.id] ? "added" : ""}`} onClick={() => onAdd(service)} type="button">
-                      {cart[service.id] ? "✓ Added" : "+ Add"}
+                    <button className={`btn-add-cart ${cart[String(service.id)] ? "added" : ""}`} onClick={() => onAdd(service)} type="button">
+                      {cart[String(service.id)] ? "✓ Added" : "+ Add"}
                     </button>
                   </div>
                 </div>
@@ -1314,8 +1356,8 @@ function BookingModal({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   onPayOnline: () => void | Promise<void>;
   onFormChange: (field: keyof BookingForm, value: string) => void;
-  onQuantityChange: (serviceId: number, quantity: number) => void;
-  onRemove: (serviceId: number) => void;
+  onQuantityChange: (serviceId: ServiceItem["id"], quantity: number) => void;
+  onRemove: (serviceId: ServiceItem["id"]) => void;
   onClearCart: () => void;
 }) {
   const today = getTodayInputValue();
@@ -1524,6 +1566,52 @@ function BookingHistory({ items }: { items: BookingHistoryItem[] }) {
   );
 }
 
+function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string, ApiServiceCategory>): ServiceItem {
+  const apiCategory = categoryMap.get(service.categoryId);
+  const searchableText = [service.name, service.description, service.icon, apiCategory?.name, apiCategory?.slug].filter(Boolean).join(" ").toLowerCase();
+  const category = inferServiceCategory(searchableText);
+
+  return {
+    id: `api-${service.id}`,
+    serviceId: service.id,
+    category,
+    categoryLabel: apiCategory?.name ?? categoryLabels[category],
+    iconClass: getServiceIconClass(service.icon, searchableText, category),
+    name: service.name,
+    description: service.description,
+    price: service.basePrice
+  };
+}
+
+function inferServiceCategory(value: string): ServiceCategoryId {
+  if (/\b(toilet|bath|bathroom|washroom|sanit)/.test(value)) return "toilet";
+  if (/\b(tank|water|sintex|reservoir)/.test(value)) return "tank";
+  if (/\b(ac|air conditioner|electric|electrician|repair|appliance|plumber|carpenter)/.test(value)) return "ac";
+  if (/\b(sofa|couch|chimney|fridge|refrigerator|pest|mattress|carpet)/.test(value)) return "sofa";
+  return "deep";
+}
+
+function getServiceIconClass(icon: string | null | undefined, searchableText: string, category: ServiceCategoryId) {
+  const normalizedIcon = icon?.trim().replace(/^bi\s+/, "");
+  if (normalizedIcon?.startsWith("bi-")) return normalizedIcon;
+  if (/\b(ac|air conditioner|cooling)/.test(searchableText) || normalizedIcon === "ac") return "bi-snow";
+  if (/\b(tank|water|sintex)/.test(searchableText) || normalizedIcon === "tank") return "bi-droplet-fill";
+  if (/\b(sofa|couch|mattress|carpet)/.test(searchableText) || normalizedIcon === "sofa") return "bi-grid-1x2-fill";
+  if (/\b(electric|repair|tool|plumber|carpenter)/.test(searchableText) || normalizedIcon === "tools") return "bi-tools";
+  if (/\b(security|guard|facility)/.test(searchableText) || normalizedIcon === "security") return "bi-shield-check";
+  if (/\b(home|deep)/.test(searchableText) || normalizedIcon === "home") return "bi-house-heart-fill";
+  if (/\b(clean|sparkle|star|bath|toilet)/.test(searchableText) || normalizedIcon === "sparkle") return "bi-stars";
+  return categories.find((item) => item.id === category)?.iconClass ?? "bi-stars";
+}
+
+function slugifyLabel(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function _LegacyBookingModal({
   cartItems,
   total,
@@ -1686,6 +1774,7 @@ function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: n
     paymentMode: form.paymentMode,
     totalAmount: total,
     items: cartItems.map((item) => ({
+      serviceId: item.serviceId,
       serviceName: item.name,
       quantity: item.quantity,
       unitPrice: item.price

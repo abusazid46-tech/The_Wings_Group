@@ -1,8 +1,10 @@
 export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "deep";
 
 export type ServiceItem = {
-  id: number;
+  id: string | number;
+  serviceId?: string;
   category: ServiceCategoryId;
+  categoryLabel?: string;
   iconClass: string;
   name: string;
   description: string;
