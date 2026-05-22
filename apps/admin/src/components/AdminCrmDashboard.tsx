@@ -1,6 +1,6 @@
 "use client";
 
-import { createApiClient } from "@the-wings/api-client";
+import { ApiClientError, createApiClient } from "@the-wings/api-client";
 import type {
   AdminDashboard,
   AuthSession,
@@ -381,19 +381,22 @@ export function AdminCrmDashboard() {
     const categoryId = categories.some((category) => category.id === serviceForm.categoryId)
       ? serviceForm.categoryId
       : categories[0]?.id || fallbackCategories[0]?.id || "";
+    const basePrice = serviceForm.basePrice.trim() === "" ? Number.NaN : Number(serviceForm.basePrice);
+    const durationMin = serviceForm.durationMin.trim() === "" ? undefined : Number(serviceForm.durationMin);
     const payload: ServiceCreateInput = {
       categoryId,
       name: serviceForm.name.trim(),
       slug: serviceForm.slug.trim() || slugify(serviceForm.name),
       description: serviceForm.description.trim(),
       icon: serviceForm.icon.trim() || undefined,
-      basePrice: Number(serviceForm.basePrice),
-      durationMin: serviceForm.durationMin ? Number(serviceForm.durationMin) : undefined,
+      basePrice,
+      durationMin,
       isActive: serviceForm.isActive
     };
 
-    if (!payload.name || !payload.slug || !payload.description || Number.isNaN(payload.basePrice)) {
-      setNotice("Service name, slug, description, and price are required.");
+    const serviceError = validateServicePayload(payload);
+    if (serviceError) {
+      setNotice(serviceError);
       return;
     }
 
@@ -403,9 +406,9 @@ export function AdminCrmDashboard() {
       upsertService(response.data);
       setMode("live");
       setNotice(serviceForm.id ? "Service updated." : "Service created.");
-    } catch {
+    } catch (error) {
       setMode("loading");
-      setNotice("Service was not saved to the database. Check backend/database connection before adding it again.");
+      setNotice(`Service was not saved. ${getApiErrorMessage(error)}`);
       return;
     }
 
@@ -418,9 +421,9 @@ export function AdminCrmDashboard() {
       upsertService(response.data);
       setMode("live");
       setNotice("Service disabled.");
-    } catch {
+    } catch (error) {
       setMode("loading");
-      setNotice("Service was not disabled in the database. Check backend/database connection and try again.");
+      setNotice(`Service was not disabled. ${getApiErrorMessage(error)}`);
     }
   }
 
@@ -1287,6 +1290,25 @@ function slugify(value: string) {
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
+}
+
+function validateServicePayload(payload: ServiceCreateInput) {
+  if (!payload.categoryId) return "Choose a valid service category.";
+  if (payload.name.length < 2) return "Service name must be at least 2 characters.";
+  if (payload.slug.length < 2) return "Service slug must be at least 2 characters.";
+  if (payload.description.length < 10) return "Service description must be at least 10 characters.";
+  if (!Number.isInteger(payload.basePrice) || payload.basePrice < 0) return "Base price must be a whole number, zero or higher.";
+  if (payload.durationMin !== undefined && (!Number.isInteger(payload.durationMin) || payload.durationMin <= 0)) {
+    return "Duration minutes must be a positive whole number.";
+  }
+
+  return "";
+}
+
+function getApiErrorMessage(error: unknown) {
+  if (error instanceof ApiClientError) return error.message;
+  if (error instanceof Error) return error.message;
+  return "Check backend/database connection and try again.";
 }
 
 function formatDate(value: string) {

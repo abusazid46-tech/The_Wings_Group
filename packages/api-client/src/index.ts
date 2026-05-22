@@ -32,7 +32,30 @@ type ApiClientOptions = {
   credentials?: RequestCredentials;
 };
 
+type ApiErrorBody = {
+  error?: string;
+  detail?: string;
+  code?: string;
+  requestId?: string;
+  details?: {
+    fieldErrors?: Record<string, string[]>;
+    formErrors?: string[];
+  };
+};
+
 const deployedApiUrl = "https://the-wings-group.onrender.com";
+
+export class ApiClientError extends Error {
+  readonly status: number;
+  readonly body: ApiErrorBody | null;
+
+  constructor(status: number, body: ApiErrorBody | null) {
+    super(formatApiError(status, body));
+    this.name = "ApiClientError";
+    this.status = status;
+    this.body = body;
+  }
+}
 
 function getDefaultApiUrl() {
   const runtimeEnv = globalThis as typeof globalThis & {
@@ -219,11 +242,37 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      throw new ApiClientError(response.status, await parseErrorBody(response));
     }
 
     return response.json() as Promise<T>;
   }
+}
+
+async function parseErrorBody(response: Response): Promise<ApiErrorBody | null> {
+  try {
+    const body = (await response.json()) as unknown;
+    return isApiErrorBody(body) ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+function isApiErrorBody(value: unknown): value is ApiErrorBody {
+  return Boolean(value && typeof value === "object");
+}
+
+function formatApiError(status: number, body: ApiErrorBody | null) {
+  const fieldErrors = body?.details?.fieldErrors;
+  const fieldMessage = fieldErrors
+    ? Object.entries(fieldErrors)
+        .flatMap(([field, messages]) => messages.map((message) => `${field}: ${message}`))
+        .join("; ")
+    : "";
+  const formMessage = body?.details?.formErrors?.join("; ") ?? "";
+  const message = [body?.error, body?.detail, fieldMessage, formMessage].filter(Boolean).join(" - ");
+
+  return message || `API request failed: ${status}`;
 }
 
 export function createApiClient(options?: Partial<ApiClientOptions>) {

@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { Router, type NextFunction, type Response } from "express";
+import { Prisma } from "@prisma/client";
 import { serviceCreateSchema, serviceUpdateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
 import { isStaffRole, optionalAuth, requireRoles } from "../middleware/auth.js";
@@ -57,7 +58,7 @@ servicesRouter.post("/", ...requireRoles("ADMIN", "MANAGER"), async (req, res, n
     const service = await prisma.service.create({ data: input });
     res.status(201).json({ data: service });
   } catch (error) {
-    next(error);
+    handleServiceWriteError(error, res, next);
   }
 });
 
@@ -70,7 +71,7 @@ servicesRouter.patch("/:id", ...requireRoles("ADMIN", "MANAGER"), async (req, re
     });
     res.json({ data: service });
   } catch (error) {
-    next(error);
+    handleServiceWriteError(error, res, next);
   }
 });
 
@@ -82,6 +83,24 @@ servicesRouter.delete("/:id", ...requireRoles("ADMIN", "MANAGER"), async (req, r
     });
     res.json({ data: service });
   } catch (error) {
-    next(error);
+    handleServiceWriteError(error, res, next);
   }
 });
+
+function handleServiceWriteError(error: unknown, res: Response, next: NextFunction) {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === "P2002") {
+      return res.status(409).json({ error: "A service with this slug already exists. Use a unique slug." });
+    }
+
+    if (error.code === "P2003") {
+      return res.status(400).json({ error: "Choose a valid service category before saving." });
+    }
+
+    if (error.code === "P2025") {
+      return res.status(404).json({ error: "Service was not found." });
+    }
+  }
+
+  return next(error);
+}
