@@ -1,5 +1,5 @@
 import { googleLoginSchema, otpRequestSchema, otpVerifySchema } from "@the-wings/validation";
-import type { User } from "@prisma/client";
+import { Prisma, type User } from "@prisma/client";
 import { Router } from "express";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
@@ -188,18 +188,24 @@ authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 *
       return res.status(401).json({ error: "Google account email is required." });
     }
 
-    const existingUser = await prisma.user.findFirst({
-      where: {
-        OR: [{ googleId: tokenInfo.sub }, { email }]
-      }
-    });
+    const [googleUser, emailUser] = await Promise.all([
+      prisma.user.findUnique({ where: { googleId: tokenInfo.sub } }),
+      prisma.user.findUnique({ where: { email } })
+    ]);
 
+    if (googleUser && emailUser && googleUser.id !== emailUser.id) {
+      return res.status(409).json({
+        error: "This Google account conflicts with an existing customer email. Ask admin to merge the accounts in Supabase."
+      });
+    }
+
+    const existingUser = googleUser ?? emailUser;
     const user = existingUser
       ? await prisma.user.update({
           where: { id: existingUser.id },
           data: {
             googleId: existingUser.googleId ?? tokenInfo.sub,
-            email,
+            email: existingUser.email ?? email,
             name: existingUser.name ?? tokenInfo.name,
             avatarUrl: tokenInfo.picture ?? existingUser.avatarUrl,
             isActive: true
@@ -220,6 +226,20 @@ authRouter.post("/google", rateLimit({ keyPrefix: "google-login", windowMs: 15 *
     setSessionCookie(res, session.token);
     return res.json({ data: session });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return res.status(409).json({
+          error: "This Google account is already linked to another user record. Ask admin to merge duplicate user rows in Supabase."
+        });
+      }
+
+      if (error.code === "P2021" || error.code === "P2022") {
+        return res.status(503).json({
+          error: "Database schema is not up to date. Run Prisma migrate deploy on Render."
+        });
+      }
+    }
+
     return next(error);
   }
 });

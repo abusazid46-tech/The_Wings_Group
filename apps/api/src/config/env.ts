@@ -9,7 +9,7 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:3000,http://localhost:3001"),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   ERROR_MONITOR_WEBHOOK_URL: z.string().url().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional().transform((value) => value?.trim().replace(/^["']|["']$/g, "") || undefined),
   OTP_DEBUG_ENABLED: z.coerce.boolean().default(false),
   RAZORPAY_KEY_ID: z.string().optional(),
   RAZORPAY_KEY_SECRET: z.string().optional(),
