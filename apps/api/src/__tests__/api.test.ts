@@ -448,6 +448,34 @@ describe("auth, authorization, booking, and payment API", () => {
     expect(state.services).toHaveLength(1);
   });
 
+  it("accepts admin service form values when numeric fields arrive as strings", async () => {
+    const admin = createFakeUser("ADMIN", { phone: "9876543211" });
+    const response = await request(app)
+      .post("/services")
+      .set("Cookie", cookieFor(admin))
+      .send({
+        categoryId: "cleaning",
+        name: "Sofa Shampoo",
+        slug: "",
+        description: "",
+        icon: "",
+        basePrice: "Rs. 799",
+        durationMin: "120",
+        isActive: "true"
+      })
+      .expect(201);
+
+    expect(response.body.data).toMatchObject({
+      categoryId: state.serviceCategories[0]?.id,
+      name: "Sofa Shampoo",
+      slug: "sofa-shampoo",
+      description: "Sofa Shampoo service by The Wings Group.",
+      basePrice: 799,
+      durationMin: 120,
+      isActive: true
+    });
+  });
+
   it("lets admins create CRM leads and update an existing phone instead of making duplicates", async () => {
     const admin = createFakeUser("ADMIN", { phone: "9876543211" });
     const first = await request(app)

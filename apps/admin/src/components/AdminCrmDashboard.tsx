@@ -535,8 +535,8 @@ export function AdminCrmDashboard() {
     const categoryId = categories.some((category) => category.id === serviceForm.categoryId)
       ? serviceForm.categoryId
       : categories[0]?.id || fallbackCategories[0]?.id || "";
-    const basePrice = serviceForm.basePrice.trim() === "" ? Number.NaN : Number(serviceForm.basePrice);
-    const durationMin = serviceForm.durationMin.trim() === "" ? undefined : Number(serviceForm.durationMin);
+    const basePrice = parseAdminInteger(serviceForm.basePrice);
+    const durationMin = serviceForm.durationMin.trim() === "" ? undefined : parseAdminInteger(serviceForm.durationMin);
     const payload: ServiceCreateInput = {
       categoryId,
       name: serviceForm.name.trim(),
@@ -556,8 +556,10 @@ export function AdminCrmDashboard() {
 
     try {
       const api = createApiClient();
+      adminConsole("info", "Saving service payload", payload);
       const response = serviceForm.id ? await api.updateService(serviceForm.id, payload) : await api.createService(payload);
       upsertService(response.data);
+      await loadAdminData("service-save");
       setMode("live");
       setNotice(serviceForm.id ? "Service updated." : "Service created.");
       pushActivity({
@@ -1603,6 +1605,11 @@ function validateServicePayload(payload: ServiceCreateInput) {
   }
 
   return "";
+}
+
+function parseAdminInteger(value: string) {
+  const numericText = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0];
+  return numericText ? Number(numericText) : Number.NaN;
 }
 
 function getApiErrorMessage(error: unknown) {

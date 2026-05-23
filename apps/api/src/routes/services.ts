@@ -132,17 +132,22 @@ async function parseServiceUpdateBody(body: unknown) {
 function normalizeServiceBody(body: unknown, options: { defaultDescription: boolean }) {
   if (!body || typeof body !== "object") return body;
   const input = body as Record<string, unknown>;
-  const name = typeof input.name === "string" ? input.name.trim() : "";
-  const description = typeof input.description === "string" ? input.description.trim() : "";
-  const normalized = {
-    ...input,
-    name: typeof input.name === "string" ? input.name.trim() : input.name,
-    slug: typeof input.slug === "string" ? input.slug.trim() : input.slug,
-    icon: typeof input.icon === "string" ? input.icon.trim() || undefined : input.icon,
-    imageUrl: typeof input.imageUrl === "string" ? input.imageUrl.trim() || undefined : input.imageUrl
-  };
+  const name = normalizeText(input.name) ?? "";
+  const slug = normalizeText(input.slug) || slugify(name);
+  const description = normalizeText(input.description) ?? "";
+  const normalized: Record<string, unknown> = { ...input };
 
-  if (typeof input.description === "string" || options.defaultDescription) {
+  if (input.categoryId !== undefined || options.defaultDescription) normalized.categoryId = normalizeText(input.categoryId) || "cleaning";
+  if (input.name !== undefined || options.defaultDescription) normalized.name = name;
+  if (input.slug !== undefined || options.defaultDescription) normalized.slug = slug;
+  if (input.icon !== undefined) normalized.icon = normalizeText(input.icon);
+  if (input.imageUrl !== undefined) normalized.imageUrl = normalizeText(input.imageUrl);
+  if (input.basePrice !== undefined) normalized.basePrice = normalizeInteger(input.basePrice);
+  if (input.durationMin !== undefined) normalized.durationMin = normalizeInteger(input.durationMin);
+  if (input.sortOrder !== undefined) normalized.sortOrder = normalizeInteger(input.sortOrder);
+  if (input.isActive !== undefined) normalized.isActive = normalizeBoolean(input.isActive);
+
+  if (input.description !== undefined || options.defaultDescription) {
     return {
       ...normalized,
       description: description.length >= 10 ? description : name ? `${name} service by The Wings Group.` : description
@@ -150,6 +155,37 @@ function normalizeServiceBody(body: unknown, options: { defaultDescription: bool
   }
 
   return normalized;
+}
+
+function normalizeText(value: unknown) {
+  return typeof value === "string" ? value.trim() || undefined : undefined;
+}
+
+function normalizeInteger(value: unknown) {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return value;
+
+  const numericText = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0];
+  return numericText ? Number(numericText) : undefined;
+}
+
+function normalizeBoolean(value: unknown) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return value;
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return value;
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 async function resolveServiceCategoryId(categoryId: string) {
