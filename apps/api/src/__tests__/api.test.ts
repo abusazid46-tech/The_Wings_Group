@@ -46,6 +46,18 @@ type FakeBooking = {
   payments: Array<Record<string, unknown>>;
 };
 
+type FakeServiceCategory = {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string | null;
+  imageUrl?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 const state = {
   users: [] as FakeUser[],
   otps: [] as Array<{ id: string; phone: string; codeHash: string; attempts: number; expiresAt: Date; consumedAt?: Date | null; createdAt: Date }>,
@@ -53,6 +65,7 @@ const state = {
   payments: [] as Array<Record<string, unknown>>,
   leads: [] as Array<Record<string, unknown>>,
   services: [] as Array<Record<string, unknown>>,
+  serviceCategories: [] as FakeServiceCategory[],
   notes: [] as Array<Record<string, unknown>>
 };
 
@@ -71,6 +84,7 @@ function resetState() {
   state.payments = [];
   state.leads = [];
   state.services = [];
+  state.serviceCategories = [];
   state.notes = [];
 }
 
@@ -242,19 +256,54 @@ const fakePrisma: any = {
   service: {
     count: async () => state.services.length,
     findMany: async () => state.services,
-    create: async ({ data }: any) => ({ id: nextId("service"), ...data }),
+    create: async ({ data }: any) => {
+      const service = { id: nextId("service"), createdAt: new Date(), updatedAt: new Date(), ...data };
+      state.services.push(service);
+      return service;
+    },
     update: async ({ data }: any) => ({ id: nextId("service"), ...data })
   },
   serviceCategory: {
-    count: async () => 0,
-    createMany: async () => ({ count: 0 }),
-    findMany: async () => []
+    count: async () => state.serviceCategories.length,
+    createMany: async ({ data }: any) => {
+      const now = new Date();
+      for (const category of data) {
+        if (state.serviceCategories.some((item) => item.slug === category.slug)) continue;
+        state.serviceCategories.push({
+          id: nextId("category"),
+          imageUrl: null,
+          isActive: true,
+          createdAt: now,
+          updatedAt: now,
+          ...category
+        });
+      }
+      return { count: data.length };
+    },
+    findMany: async () => state.serviceCategories,
+    findFirst: async ({ where }: any = {}) => {
+      if (where?.OR) {
+        return state.serviceCategories.find((category) => where.OR.some((condition: any) => category.id === condition.id || category.slug === condition.slug)) ?? null;
+      }
+
+      return [...state.serviceCategories].sort((a, b) => a.sortOrder - b.sortOrder)[0] ?? null;
+    }
   },
   lead: {
     count: async () => state.leads.length,
     findMany: async () => state.leads,
-    create: async ({ data }: any) => ({ id: nextId("lead"), createdAt: new Date(), updatedAt: new Date(), ...data }),
-    update: async ({ where, data }: any) => ({ id: where.id, updatedAt: new Date(), ...data }),
+    findFirst: async ({ where }: any) => state.leads.find((lead) => lead.phone === where.phone) ?? null,
+    create: async ({ data }: any) => {
+      const lead = { id: nextId("lead"), createdAt: new Date(), updatedAt: new Date(), ...data };
+      state.leads.push(lead);
+      return lead;
+    },
+    update: async ({ where, data }: any) => {
+      const lead = state.leads.find((item) => item.id === where.id);
+      if (!lead) throw new Error("Lead not found");
+      Object.assign(lead, data, { updatedAt: new Date() });
+      return lead;
+    },
     delete: async ({ where }: any) => ({ id: where.id })
   },
   crmNote: {
@@ -328,10 +377,69 @@ describe("auth, authorization, booking, and payment API", () => {
     const customer = createFakeUser("CUSTOMER", { phone: "9876543210", name: "Test Customer" });
     const created = await request(app).post("/bookings").set("Cookie", cookieFor(customer)).send(bookingPayload).expect(201);
     expect(created.body.data.userId).toBe(customer.id);
+    expect(state.leads).toHaveLength(1);
+    expect(state.leads[0]).toMatchObject({
+      phone: bookingPayload.customerPhone,
+      source: "First booking",
+      status: "QUALIFIED"
+    });
 
     const otherCustomer = createFakeUser("CUSTOMER", { phone: "9876543212" });
     await request(app).get(`/bookings/${created.body.data.bookingCode}`).set("Cookie", cookieFor(otherCustomer)).expect(403);
     await request(app).get(`/bookings/${created.body.data.bookingCode}`).set("Cookie", cookieFor(customer)).expect(200);
+  });
+
+  it("lets admins create services with a stale category id by resolving a real category", async () => {
+    const admin = createFakeUser("ADMIN", { phone: "9876543211" });
+    const response = await request(app)
+      .post("/services")
+      .set("Cookie", cookieFor(admin))
+      .send({
+        categoryId: "cat-cleaning",
+        name: "Glass Cleaning",
+        slug: "glass-cleaning",
+        description: "",
+        icon: "sparkle",
+        basePrice: 299,
+        isActive: true
+      })
+      .expect(201);
+
+    expect(response.body.data.categoryId).toBe(state.serviceCategories[0]?.id);
+    expect(response.body.data.description).toBe("Glass Cleaning service by The Wings Group.");
+    expect(state.services).toHaveLength(1);
+  });
+
+  it("lets admins create CRM leads and update an existing phone instead of making duplicates", async () => {
+    const admin = createFakeUser("ADMIN", { phone: "9876543211" });
+    const first = await request(app)
+      .post("/leads")
+      .set("Cookie", cookieFor(admin))
+      .send({
+        name: "New Customer",
+        phone: "9876543210",
+        source: "Website",
+        status: "NEW",
+        notes: "Asked for sofa cleaning"
+      })
+      .expect(201);
+
+    const second = await request(app)
+      .post("/leads")
+      .set("Cookie", cookieFor(admin))
+      .send({
+        name: "New Customer",
+        phone: "9876543210",
+        source: "Phone",
+        status: "QUALIFIED",
+        notes: "Called back for Saturday slot"
+      })
+      .expect(200);
+
+    expect(first.body.data.id).toBe(second.body.data.id);
+    expect(state.leads).toHaveLength(1);
+    expect(second.body.data.notes).toContain("Asked for sofa cleaning");
+    expect(second.body.data.notes).toContain("Called back for Saturday slot");
   });
 
   it("requires booking ownership for Razorpay order creation", async () => {

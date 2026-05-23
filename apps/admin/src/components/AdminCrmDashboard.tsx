@@ -541,7 +541,7 @@ export function AdminCrmDashboard() {
       categoryId,
       name: serviceForm.name.trim(),
       slug: serviceForm.slug.trim() || slugify(serviceForm.name),
-      description: serviceForm.description.trim(),
+      description: serviceForm.description.trim() || `${serviceForm.name.trim()} service by The Wings Group.`,
       icon: serviceForm.icon.trim() || undefined,
       basePrice,
       durationMin,
@@ -680,26 +680,16 @@ export function AdminCrmDashboard() {
         tone: "success"
       });
       adminConsole("info", leadForm.id ? "Lead updated" : "Lead created", response.data);
-    } catch {
-      const lead: Lead = {
-        id: leadForm.id || `local-lead-${Date.now()}`,
-        name: payload.name,
-        phone: payload.phone,
-        email: payload.email,
-        source: payload.source,
-        status: payload.status,
-        notes: payload.notes,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      upsertLead(lead);
-      setMode("demo");
-      setNotice("API offline. Lead change is previewed locally.");
+    } catch (error) {
+      setMode("loading");
+      setNotice(`Lead was not saved. ${getApiErrorMessage(error)}`);
       pushActivity({
-        title: "Lead preview saved",
-        detail: `${lead.name || lead.phone} is local only because the API request failed.`,
-        tone: "warning"
+        title: "Lead save failed",
+        detail: getApiErrorMessage(error),
+        tone: "danger"
       });
+      adminConsole("error", "Lead save failed", error);
+      return;
     }
 
     setLeadForm(initialLeadForm);
@@ -717,15 +707,15 @@ export function AdminCrmDashboard() {
         tone: "info"
       });
       adminConsole("info", "Lead status changed", response.data);
-    } catch {
-      upsertLead({ ...lead, status, updatedAt: new Date().toISOString() });
-      setMode("demo");
-      setNotice("API offline. Lead status changed in local preview.");
+    } catch (error) {
+      setMode("loading");
+      setNotice(`Lead status was not saved. ${getApiErrorMessage(error)}`);
       pushActivity({
-        title: "Lead status changed locally",
-        detail: `${lead.name || lead.phone} changed in preview only. Backend did not confirm it.`,
-        tone: "warning"
+        title: "Lead status save failed",
+        detail: getApiErrorMessage(error),
+        tone: "danger"
       });
+      adminConsole("error", "Lead status save failed", error);
     }
   }
 
@@ -740,9 +730,16 @@ export function AdminCrmDashboard() {
         tone: "warning"
       });
       adminConsole("warn", "Lead deleted", lead);
-    } catch {
-      setMode("demo");
-      setNotice("API offline. Lead removed from local preview.");
+    } catch (error) {
+      setMode("loading");
+      setNotice(`Lead was not deleted. ${getApiErrorMessage(error)}`);
+      pushActivity({
+        title: "Lead delete failed",
+        detail: getApiErrorMessage(error),
+        tone: "danger"
+      });
+      adminConsole("error", "Lead delete failed", error);
+      return;
     }
     setLeads((current) => current.filter((item) => item.id !== lead.id));
   }
@@ -1599,7 +1596,7 @@ function validateServicePayload(payload: ServiceCreateInput) {
   if (!payload.categoryId) return "Choose a valid service category.";
   if (payload.name.length < 2) return "Service name must be at least 2 characters.";
   if (payload.slug.length < 2) return "Service slug must be at least 2 characters.";
-  if (payload.description.length < 10) return "Service description must be at least 10 characters.";
+  if (payload.description.length < 10) return "Service description must be at least 10 characters, or leave it blank to auto-generate one.";
   if (!Number.isInteger(payload.basePrice) || payload.basePrice < 0) return "Base price must be a whole number, zero or higher.";
   if (payload.durationMin !== undefined && (!Number.isInteger(payload.durationMin) || payload.durationMin <= 0)) {
     return "Duration minutes must be a positive whole number.";

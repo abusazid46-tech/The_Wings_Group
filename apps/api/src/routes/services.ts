@@ -54,7 +54,7 @@ servicesRouter.get("/", optionalAuth, async (req, res, next) => {
 
 servicesRouter.post("/", ...requireRoles("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
-    const input = serviceCreateSchema.parse(req.body);
+    const input = await parseServiceCreateBody(req.body);
     const service = await prisma.service.create({ data: input });
     res.status(201).json({ data: service });
   } catch (error) {
@@ -64,7 +64,7 @@ servicesRouter.post("/", ...requireRoles("ADMIN", "MANAGER"), async (req, res, n
 
 servicesRouter.patch("/:id", ...requireRoles("ADMIN", "MANAGER"), async (req, res, next) => {
   try {
-    const input = serviceUpdateSchema.parse(req.body);
+    const input = await parseServiceUpdateBody(req.body);
     const service = await prisma.service.update({
       where: { id: String(req.params.id ?? "") },
       data: input
@@ -103,4 +103,67 @@ function handleServiceWriteError(error: unknown, res: Response, next: NextFuncti
   }
 
   return next(error);
+}
+
+async function parseServiceCreateBody(body: unknown) {
+  await ensureDefaultCategories();
+  const input = serviceCreateSchema.parse(normalizeServiceBody(body, { defaultDescription: true }));
+  const categoryId = await resolveServiceCategoryId(input.categoryId);
+  const nextSortOrder = input.sortOrder > 0 ? input.sortOrder : (await prisma.service.count()) + 1;
+
+  return {
+    ...input,
+    categoryId,
+    sortOrder: nextSortOrder
+  };
+}
+
+async function parseServiceUpdateBody(body: unknown) {
+  await ensureDefaultCategories();
+  const input = serviceUpdateSchema.parse(normalizeServiceBody(body, { defaultDescription: false }));
+  if (!input.categoryId) return input;
+
+  return {
+    ...input,
+    categoryId: await resolveServiceCategoryId(input.categoryId)
+  };
+}
+
+function normalizeServiceBody(body: unknown, options: { defaultDescription: boolean }) {
+  if (!body || typeof body !== "object") return body;
+  const input = body as Record<string, unknown>;
+  const name = typeof input.name === "string" ? input.name.trim() : "";
+  const description = typeof input.description === "string" ? input.description.trim() : "";
+  const normalized = {
+    ...input,
+    name: typeof input.name === "string" ? input.name.trim() : input.name,
+    slug: typeof input.slug === "string" ? input.slug.trim() : input.slug,
+    icon: typeof input.icon === "string" ? input.icon.trim() || undefined : input.icon,
+    imageUrl: typeof input.imageUrl === "string" ? input.imageUrl.trim() || undefined : input.imageUrl
+  };
+
+  if (typeof input.description === "string" || options.defaultDescription) {
+    return {
+      ...normalized,
+      description: description.length >= 10 ? description : name ? `${name} service by The Wings Group.` : description
+    };
+  }
+
+  return normalized;
+}
+
+async function resolveServiceCategoryId(categoryId: string) {
+  const category = await prisma.serviceCategory.findFirst({
+    where: {
+      OR: [{ id: categoryId }, { slug: categoryId }]
+    }
+  });
+  if (category) return category.id;
+
+  const fallbackCategory = await prisma.serviceCategory.findFirst({
+    orderBy: { sortOrder: "asc" }
+  });
+  if (fallbackCategory) return fallbackCategory.id;
+
+  throw new Error("No service categories are available.");
 }

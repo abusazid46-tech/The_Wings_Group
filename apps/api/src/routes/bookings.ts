@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Prisma } from "@prisma/client";
 import { bookingCreateSchema, bookingStatusUpdateSchema } from "@the-wings/validation";
 import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
@@ -106,39 +107,50 @@ bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 *
         );
     }
 
-    const booking = await prisma.booking.create({
-      data: {
-        bookingCode: createBookingCode(),
-        userId: bookingUserId,
-        customerName: input.customerName,
-        customerPhone: input.customerPhone,
-        addressLine: input.addressLine,
-        city: input.city,
-        preferredDate: new Date(input.preferredDate),
-        preferredTimeSlot: input.preferredTimeSlot,
-        notes: input.notes,
-        totalAmount: input.totalAmount,
-        paymentMode: input.paymentMode,
-        items: {
-          create: input.items.map((item) => ({
-            serviceId: item.serviceId,
-            serviceName: item.serviceName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            lineTotal: item.quantity * item.unitPrice
-          }))
-        },
-        statusLogs: {
-          create: {
-            status: "PENDING",
-            note: "Booking created"
+    const booking = await prisma.$transaction(async (tx) => {
+      const existingBookingCount = await tx.booking.count({
+        where: { customerPhone: input.customerPhone }
+      });
+      const createdBooking = await tx.booking.create({
+        data: {
+          bookingCode: createBookingCode(),
+          userId: bookingUserId,
+          customerName: input.customerName,
+          customerPhone: input.customerPhone,
+          addressLine: input.addressLine,
+          city: input.city,
+          preferredDate: new Date(input.preferredDate),
+          preferredTimeSlot: input.preferredTimeSlot,
+          notes: input.notes,
+          totalAmount: input.totalAmount,
+          paymentMode: input.paymentMode,
+          items: {
+            create: input.items.map((item) => ({
+              serviceId: item.serviceId,
+              serviceName: item.serviceName,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              lineTotal: item.quantity * item.unitPrice
+            }))
+          },
+          statusLogs: {
+            create: {
+              status: "PENDING",
+              note: "Booking created"
+            }
           }
+        },
+        include: {
+          items: true,
+          statusLogs: true
         }
-      },
-      include: {
-        items: true,
-        statusLogs: true
+      });
+
+      if (existingBookingCount === 0) {
+        await syncFirstBookingLead(tx, createdBooking);
       }
+
+      return createdBooking;
     });
     const customerMessage = [
       `Hi ${booking.customerName}, your Wings Group booking ${booking.bookingCode} has been received.`,
@@ -171,3 +183,54 @@ bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 *
     next(error);
   }
 });
+
+async function syncFirstBookingLead(
+  tx: Prisma.TransactionClient,
+  booking: {
+    bookingCode: string;
+    customerName: string;
+    customerPhone: string;
+    city: string;
+    addressLine: string;
+    totalAmount: number;
+    paymentMode: string;
+    preferredTimeSlot: string;
+    items: Array<{ serviceName: string }>;
+  }
+) {
+  const serviceSummary = booking.items.map((item) => item.serviceName).join(", ") || "Service booking";
+  const note = [
+    `Auto-created from first booking ${booking.bookingCode}.`,
+    `Services: ${serviceSummary}.`,
+    `Address: ${booking.addressLine}, ${booking.city}.`,
+    `Payment: ${booking.paymentMode} - Rs. ${booking.totalAmount.toLocaleString()}.`
+  ].join(" ");
+
+  const existingLead = await tx.lead.findFirst({
+    where: { phone: booking.customerPhone },
+    orderBy: { updatedAt: "desc" }
+  });
+
+  if (existingLead) {
+    await tx.lead.update({
+      where: { id: existingLead.id },
+      data: {
+        name: existingLead.name ?? booking.customerName,
+        source: existingLead.source ?? "First booking",
+        status: existingLead.status === "WON" ? "WON" : "QUALIFIED",
+        notes: existingLead.notes ? `${existingLead.notes}\n\n${note}` : note
+      }
+    });
+    return;
+  }
+
+  await tx.lead.create({
+    data: {
+      name: booking.customerName,
+      phone: booking.customerPhone,
+      source: "First booking",
+      status: "QUALIFIED",
+      notes: note
+    }
+  });
+}
