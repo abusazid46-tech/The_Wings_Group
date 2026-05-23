@@ -9,6 +9,7 @@ leadsRouter.use(...requireRoles("ADMIN", "MANAGER"));
 
 leadsRouter.get("/", async (_req, res, next) => {
   try {
+    await syncBookingLeadsFromBookings();
     const leads = await prisma.lead.findMany({
       orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
     });
@@ -74,6 +75,57 @@ function mergeLeadNotes(existing?: string | null, incoming?: string | null) {
   if (!existing) return incoming;
   if (existing.includes(incoming)) return existing;
   return `${existing}\n\n${incoming}`;
+}
+
+async function syncBookingLeadsFromBookings() {
+  const [bookings, existingLeads] = await Promise.all([
+    prisma.booking.findMany({
+      include: { items: true },
+      orderBy: { createdAt: "asc" }
+    }),
+    prisma.lead.findMany({
+      select: { phone: true }
+    })
+  ]);
+  const phonesWithLeads = new Set(existingLeads.map((lead) => normalizePhone(lead.phone)).filter(Boolean));
+  const phonesSyncedThisRun = new Set<string>();
+
+  for (const booking of bookings) {
+    const phone = normalizePhone(booking.customerPhone);
+    if (!phone || phonesWithLeads.has(phone) || phonesSyncedThisRun.has(phone)) continue;
+
+    phonesSyncedThisRun.add(phone);
+    await prisma.lead.create({
+      data: {
+        name: booking.customerName,
+        phone: booking.customerPhone,
+        source: "First booking",
+        status: "QUALIFIED",
+        notes: buildBookingLeadNote(booking)
+      }
+    });
+  }
+}
+
+function buildBookingLeadNote(booking: {
+  bookingCode: string;
+  addressLine: string;
+  city: string;
+  paymentMode: string;
+  totalAmount: number;
+  items: Array<{ serviceName: string }>;
+}) {
+  const serviceSummary = booking.items.map((item) => item.serviceName).join(", ") || "Service booking";
+  return [
+    `Auto-created from existing booking ${booking.bookingCode}.`,
+    `Services: ${serviceSummary}.`,
+    `Address: ${booking.addressLine}, ${booking.city}.`,
+    `Payment: ${booking.paymentMode} - Rs. ${booking.totalAmount.toLocaleString()}.`
+  ].join(" ");
+}
+
+function normalizePhone(phone?: string | null) {
+  return phone?.replace(/\D/g, "") ?? "";
 }
 
 function handleLeadWriteError(error: unknown, res: Response, next: NextFunction) {

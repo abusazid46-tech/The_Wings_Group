@@ -108,9 +108,6 @@ bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 *
     }
 
     const booking = await prisma.$transaction(async (tx) => {
-      const existingBookingCount = await tx.booking.count({
-        where: { customerPhone: input.customerPhone }
-      });
       const createdBooking = await tx.booking.create({
         data: {
           bookingCode: createBookingCode(),
@@ -146,9 +143,7 @@ bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 *
         }
       });
 
-      if (existingBookingCount === 0) {
-        await syncFirstBookingLead(tx, createdBooking);
-      }
+      await syncBookingLead(tx, createdBooking);
 
       return createdBooking;
     });
@@ -184,7 +179,7 @@ bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 *
   }
 });
 
-async function syncFirstBookingLead(
+async function syncBookingLead(
   tx: Prisma.TransactionClient,
   booking: {
     bookingCode: string;
@@ -200,7 +195,7 @@ async function syncFirstBookingLead(
 ) {
   const serviceSummary = booking.items.map((item) => item.serviceName).join(", ") || "Service booking";
   const note = [
-    `Auto-created from first booking ${booking.bookingCode}.`,
+    `Auto-synced from booking ${booking.bookingCode}.`,
     `Services: ${serviceSummary}.`,
     `Address: ${booking.addressLine}, ${booking.city}.`,
     `Payment: ${booking.paymentMode} - Rs. ${booking.totalAmount.toLocaleString()}.`

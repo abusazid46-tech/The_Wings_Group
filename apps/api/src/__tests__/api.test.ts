@@ -389,6 +389,44 @@ describe("auth, authorization, booking, and payment API", () => {
     await request(app).get(`/bookings/${created.body.data.bookingCode}`).set("Cookie", cookieFor(customer)).expect(200);
   });
 
+  it("repairs missing CRM leads for customers who already have booking history", async () => {
+    const customer = createFakeUser("CUSTOMER", { phone: "9876543210", name: "Repeat Customer" });
+    createFakeBooking(customer, {
+      bookingCode: "TWG-OLD-1",
+      customerName: "Repeat Customer",
+      customerPhone: bookingPayload.customerPhone
+    });
+
+    await request(app).post("/bookings").set("Cookie", cookieFor(customer)).send(bookingPayload).expect(201);
+
+    expect(state.leads).toHaveLength(1);
+    expect(state.leads[0]).toMatchObject({
+      phone: bookingPayload.customerPhone,
+      source: "First booking",
+      status: "QUALIFIED"
+    });
+  });
+
+  it("backfills CRM leads from existing bookings when admins load the lead list", async () => {
+    const customer = createFakeUser("CUSTOMER", { phone: "9876543210", name: "Booked Customer" });
+    const admin = createFakeUser("ADMIN", { phone: "9876543211" });
+    createFakeBooking(customer, {
+      bookingCode: "TWG-HISTORIC-1",
+      customerName: "Booked Customer",
+      customerPhone: bookingPayload.customerPhone
+    });
+
+    const response = await request(app).get("/leads").set("Cookie", cookieFor(admin)).expect(200);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0]).toMatchObject({
+      phone: bookingPayload.customerPhone,
+      source: "First booking",
+      status: "QUALIFIED"
+    });
+    expect(state.leads).toHaveLength(1);
+  });
+
   it("lets admins create services with a stale category id by resolving a real category", async () => {
     const admin = createFakeUser("ADMIN", { phone: "9876543211" });
     const response = await request(app)
