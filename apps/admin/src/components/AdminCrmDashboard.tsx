@@ -311,6 +311,7 @@ export function AdminCrmDashboard() {
   const [leadForm, setLeadForm] = useState<LeadForm>(initialLeadForm);
   const [noteForm, setNoteForm] = useState<NoteForm>({ title: "", body: "" });
   const [query, setQuery] = useState("");
+  const serviceEditorRef = useRef<HTMLElement | null>(null);
 
   const pushActivity = useCallback((event: Omit<ActivityEvent, "id" | "at"> & { at?: string }) => {
     const entry: ActivityEvent = {
@@ -599,18 +600,28 @@ export function AdminCrmDashboard() {
   }
 
   function editService(service: Service) {
+    const icon = inferServiceIconKey([service.icon, service.name, service.description].filter(Boolean).join(" "));
     setServiceForm({
       id: service.id,
       categoryId: service.categoryId,
       name: service.name,
       slug: service.slug,
       description: service.description,
-      icon: inferServiceIconKey([service.icon, service.name, service.description].filter(Boolean).join(" ")),
+      icon,
       basePrice: String(service.basePrice),
       durationMin: service.durationMin ? String(service.durationMin) : "",
       isActive: service.isActive
     });
     setActiveTab("services");
+    setNotice(`Editing ${service.name}. Update the fields and click Update Service.`);
+    pushActivity({
+      title: "Service edit mode opened",
+      detail: `${service.name} is loaded in the service editor.`,
+      tone: "info"
+    });
+    window.requestAnimationFrame(() => {
+      serviceEditorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function upsertService(service: Service) {
@@ -965,7 +976,7 @@ export function AdminCrmDashboard() {
 
         {activeTab === "services" && (
           <div className="split-grid">
-            <section className="panel">
+            <section className={`panel ${serviceForm.id ? "editing-panel" : ""}`} ref={serviceEditorRef}>
               <PanelHead title={serviceForm.id ? "Edit Service" : "Add Service"} subtitle="Create and update services shown by the backend catalog." />
               <ServiceFormView
                 form={serviceForm}
@@ -1455,7 +1466,7 @@ function ServiceFormView({
       </label>
       <div className="form-actions">
         <button className="primary-button" type="submit">{form.id ? "Update Service" : "Create Service"}</button>
-        <button type="button" onClick={onReset}>Reset</button>
+        <button type="button" onClick={onReset}>{form.id ? "Cancel Edit" : "Reset"}</button>
       </div>
     </form>
   );

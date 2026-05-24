@@ -261,7 +261,12 @@ const fakePrisma: any = {
       state.services.push(service);
       return service;
     },
-    update: async ({ data }: any) => ({ id: nextId("service"), ...data })
+    update: async ({ where, data }: any) => {
+      const service = state.services.find((item) => item.id === where.id);
+      if (!service) throw new Error("Service not found");
+      Object.assign(service, data, { updatedAt: new Date() });
+      return service;
+    }
   },
   serviceCategory: {
     count: async () => state.serviceCategories.length,
@@ -473,6 +478,53 @@ describe("auth, authorization, booking, and payment API", () => {
       basePrice: 799,
       durationMin: 120,
       isActive: true
+    });
+  });
+
+  it("lets admins edit an existing service and persists the updated values", async () => {
+    const admin = createFakeUser("ADMIN", { phone: "9876543211" });
+    const created = await request(app)
+      .post("/services")
+      .set("Cookie", cookieFor(admin))
+      .send({
+        categoryId: "cleaning",
+        name: "Sofa Shampoo",
+        slug: "sofa-shampoo",
+        description: "Fabric sofa shampoo and stain treatment.",
+        icon: "sofa",
+        basePrice: 799,
+        durationMin: 120,
+        isActive: true
+      })
+      .expect(201);
+
+    const updated = await request(app)
+      .patch(`/services/${created.body.data.id}`)
+      .set("Cookie", cookieFor(admin))
+      .send({
+        categoryId: "cleaning",
+        name: "Sofa Shampoo Premium",
+        slug: "sofa-shampoo-premium",
+        description: "",
+        icon: "sofa",
+        basePrice: "Rs. 899",
+        durationMin: "150",
+        isActive: true
+      })
+      .expect(200);
+
+    expect(updated.body.data).toMatchObject({
+      id: created.body.data.id,
+      name: "Sofa Shampoo Premium",
+      slug: "sofa-shampoo-premium",
+      description: "Sofa Shampoo Premium service by The Wings Group.",
+      basePrice: 899,
+      durationMin: 150
+    });
+    expect(state.services).toHaveLength(1);
+    expect(state.services[0]).toMatchObject({
+      name: "Sofa Shampoo Premium",
+      basePrice: 899
     });
   });
 

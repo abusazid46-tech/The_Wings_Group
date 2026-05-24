@@ -462,6 +462,11 @@ h2 {
   padding: 18px;
 }
 
+.editing-panel {
+  border-color: var(--sky);
+  box-shadow: 0 18px 42px rgba(26, 111, 168, 0.14);
+}
+
 .panel-head {
   justify-content: space-between;
   gap: 16px;
