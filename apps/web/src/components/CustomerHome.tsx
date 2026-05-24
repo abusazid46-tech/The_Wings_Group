@@ -12,7 +12,7 @@ import type {
 } from "@the-wings/types";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { inferServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
+import { inferServiceIconKey, resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
@@ -1577,7 +1577,7 @@ function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string
     serviceId: service.id,
     category,
     categoryLabel: apiCategory?.name ?? categoryLabels[category],
-    iconKey: inferServiceIconKey([service.icon, searchableText].filter(Boolean).join(" "), getCategoryIconKey(category)),
+    iconKey: resolveServiceIconKey(service.icon, searchableText, getCategoryIconKey(category)),
     name: service.name,
     description: service.description,
     price: service.basePrice

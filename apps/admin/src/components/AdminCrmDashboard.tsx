@@ -16,7 +16,7 @@ import type {
   ServiceCreateInput
 } from "@the-wings/types";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { inferServiceIconKey, normalizeServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
+import { normalizeServiceIconKey, resolveServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
 
 type TabId = "dashboard" | "bookings" | "services" | "customers" | "leads" | "whatsapp";
 type DataMode = "loading" | "live" | "demo";
@@ -600,7 +600,8 @@ export function AdminCrmDashboard() {
   }
 
   function editService(service: Service) {
-    const icon = inferServiceIconKey([service.icon, service.name, service.description].filter(Boolean).join(" "));
+    const searchableText = [service.name, service.description].filter(Boolean).join(" ");
+    const icon = resolveServiceIconKey(service.icon, searchableText);
     setServiceForm({
       id: service.id,
       categoryId: service.categoryId,
@@ -1491,7 +1492,7 @@ function ServiceTable({
         <div className={`service-row ${service.isActive ? "" : "inactive"}`} key={service.id}>
           <div className="service-row-main">
             <span className="service-row-icon">
-              <ServiceIcon className="admin-service-vector" name={inferServiceIconKey([service.icon, service.name, service.description].filter(Boolean).join(" "))} title={service.name} />
+              <ServiceIcon className="admin-service-vector" name={resolveServiceIconKey(service.icon, [service.name, service.description].filter(Boolean).join(" "))} title={service.name} />
             </span>
             <div>
               <strong>{service.name}</strong>

@@ -64,9 +64,15 @@ const aliases: Record<string, ServiceIconKey> = {
 };
 
 export function normalizeServiceIconKey(value?: string | null, fallback: ServiceIconKey = "cleaning"): ServiceIconKey {
-  const normalized = value?.trim().toLowerCase().replace(/^bi\s+/, "").replace(/^bi-/, "").replace(/[^a-z0-9]+/g, "-") ?? "";
+  const normalized = normalizeIconToken(value);
   if (iconKeys.includes(normalized as ServiceIconKey)) return normalized as ServiceIconKey;
   return aliases[normalized] ?? fallback;
+}
+
+export function resolveServiceIconKey(icon: string | null | undefined, searchableText: string, fallback: ServiceIconKey = "cleaning"): ServiceIconKey {
+  const normalized = normalizeIconToken(icon);
+  if (iconKeys.includes(normalized as ServiceIconKey) && normalized !== "all") return normalized as ServiceIconKey;
+  return inferServiceIconKey([searchableText, icon].filter(Boolean).join(" "), fallback);
 }
 
 export function inferServiceIconKey(value: string, fallback: ServiceIconKey = "cleaning"): ServiceIconKey {
@@ -85,6 +91,10 @@ export function inferServiceIconKey(value: string, fallback: ServiceIconKey = "c
   if (/\b(security|guard|facility)/.test(text)) return "security";
   if (/\b(home|deep|room|bhk)/.test(text)) return "home";
   return normalizeServiceIconKey(value, fallback);
+}
+
+function normalizeIconToken(value?: string | null) {
+  return value?.trim().toLowerCase().replace(/^bi\s+/, "").replace(/^bi-/, "").replace(/[^a-z0-9]+/g, "-") ?? "";
 }
 
 export function ServiceIcon({ name, className, title }: { name?: string | null; className?: string; title?: string }) {
