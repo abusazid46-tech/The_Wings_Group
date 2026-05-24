@@ -16,6 +16,7 @@ import type {
   ServiceCreateInput
 } from "@the-wings/types";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { inferServiceIconKey, normalizeServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
 
 type TabId = "dashboard" | "bookings" | "services" | "customers" | "leads" | "whatsapp";
 type DataMode = "loading" | "live" | "demo";
@@ -126,7 +127,7 @@ const fallbackServices: Service[] = [
     name: "Bathroom Deep Cleaning",
     slug: "bathroom-deep-cleaning",
     description: "Tiles, sink, toilet, mirror, fixtures, and floor sanitization.",
-    icon: "sparkle",
+    icon: "bathroom",
     basePrice: 299,
     durationMin: 90,
     sortOrder: 1,
@@ -274,7 +275,7 @@ const initialServiceForm: ServiceForm = {
   name: "",
   slug: "",
   description: "",
-  icon: "",
+  icon: "cleaning",
   basePrice: "",
   durationMin: "",
   isActive: true
@@ -542,7 +543,7 @@ export function AdminCrmDashboard() {
       name: serviceForm.name.trim(),
       slug: serviceForm.slug.trim() || slugify(serviceForm.name),
       description: serviceForm.description.trim() || `${serviceForm.name.trim()} service by The Wings Group.`,
-      icon: serviceForm.icon.trim() || undefined,
+      icon: normalizeServiceIconKey(serviceForm.icon),
       basePrice,
       durationMin,
       isActive: serviceForm.isActive
@@ -604,7 +605,7 @@ export function AdminCrmDashboard() {
       name: service.name,
       slug: service.slug,
       description: service.description,
-      icon: service.icon ?? "",
+      icon: inferServiceIconKey([service.icon, service.name, service.description].filter(Boolean).join(" ")),
       basePrice: String(service.basePrice),
       durationMin: service.durationMin ? String(service.durationMin) : "",
       isActive: service.isActive
@@ -1422,10 +1423,28 @@ function ServiceFormView({
         Duration Minutes
         <input value={form.durationMin} onChange={(event) => onChange("durationMin", event.target.value)} inputMode="numeric" placeholder="90" />
       </label>
-      <label>
-        Icon Label
-        <input value={form.icon} onChange={(event) => onChange("icon", event.target.value)} placeholder="sparkle" />
-      </label>
+      <div className="wide icon-picker-field">
+        <span className="field-label">Service Icon</span>
+        <div className="icon-picker-grid" role="radiogroup" aria-label="Service icon">
+          {serviceIconOptions.map((option) => {
+            const selected = normalizeServiceIconKey(form.icon) === option.key;
+            return (
+              <button
+                aria-checked={selected}
+                className={`icon-choice ${selected ? "selected" : ""}`}
+                key={option.key}
+                onClick={() => onChange("icon", option.key)}
+                role="radio"
+                title={option.label}
+                type="button"
+              >
+                <ServiceIcon className="admin-service-vector" name={option.key} title={option.label} />
+                <span>{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
       <label className="wide">
         Description
         <textarea value={form.description} onChange={(event) => onChange("description", event.target.value)} rows={4} />
@@ -1459,10 +1478,15 @@ function ServiceTable({
     <div className="service-list">
       {services.map((service) => (
         <div className={`service-row ${service.isActive ? "" : "inactive"}`} key={service.id}>
-          <div>
-            <strong>{service.name}</strong>
-            <span>{categoryMap.get(service.categoryId) ?? "Uncategorized"} - Rs. {service.basePrice.toLocaleString()}</span>
-            <small>{service.description}</small>
+          <div className="service-row-main">
+            <span className="service-row-icon">
+              <ServiceIcon className="admin-service-vector" name={inferServiceIconKey([service.icon, service.name, service.description].filter(Boolean).join(" "))} title={service.name} />
+            </span>
+            <div>
+              <strong>{service.name}</strong>
+              <span>{categoryMap.get(service.categoryId) ?? "Uncategorized"} - Rs. {service.basePrice.toLocaleString()}</span>
+              <small>{service.description}</small>
+            </div>
           </div>
           <div className="row-actions">
             <button type="button" onClick={() => onEdit(service)}>Edit</button>

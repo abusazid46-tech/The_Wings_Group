@@ -12,6 +12,7 @@ import type {
 } from "@the-wings/types";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { inferServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
@@ -63,13 +64,13 @@ declare global {
   }
 }
 
-const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconClass: string }> = [
-  { id: "all", label: "All Services", iconClass: "bi-grid-fill" },
-  { id: "toilet", label: "Toilet & Bath", iconClass: "bi-stars" },
-  { id: "tank", label: "Tank", iconClass: "bi-droplet-fill" },
-  { id: "ac", label: "AC & Electric", iconClass: "bi-snow" },
-  { id: "sofa", label: "Sofa & Appliances", iconClass: "bi-grid-1x2-fill" },
-  { id: "deep", label: "Deep Clean", iconClass: "bi-house-heart-fill" }
+const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey: ServiceIconKey }> = [
+  { id: "all", label: "All Services", iconKey: "all" },
+  { id: "toilet", label: "Toilet & Bath", iconKey: "bathroom" },
+  { id: "tank", label: "Tank", iconKey: "tank" },
+  { id: "ac", label: "AC & Electric", iconKey: "ac" },
+  { id: "sofa", label: "Sofa & Appliances", iconKey: "sofa" },
+  { id: "deep", label: "Deep Clean", iconKey: "home" }
 ];
 
 const initialForm = {
@@ -310,7 +311,7 @@ export function CustomerHome() {
       ({
         id: `quick-${slugifyLabel(query)}`,
         category: "deep",
-        iconClass: "bi-stars",
+        iconKey: inferServiceIconKey(query, "cleaning"),
         name: query,
         description: "",
         price: fallbackPrice
@@ -821,7 +822,7 @@ function Hero({ onQuickBook }: { onQuickBook: (query: string, price: number, scr
                     onClick={() => onQuickBook(service.query, service.price, service.scrollOnly)}
                   >
                     <div className="uc-svc-icon-wrap">
-                      <i className={`bi ${service.iconClass}`} />
+                      <ServiceIcon className="service-vector-icon quick-service-vector" name={service.iconKey} title={service.label} />
                       {service.badge && <span className="uc-time-badge">{service.badge}</span>}
                     </div>
                     <div className="uc-svc-name">{service.label}</div>
@@ -921,7 +922,7 @@ function ServicesSection({
         <div className="text-center mb-4">
           {categories.map((item) => (
             <button className={`category-tab ${category === item.id ? "active" : ""}`} key={item.id} onClick={() => onCategoryChange(item.id)} type="button">
-              <i className={`bi ${item.iconClass} me-2`} /> {item.label}
+              <ServiceIcon className="service-vector-icon category-vector" name={item.iconKey} title={item.label} /> {item.label}
             </button>
           ))}
         </div>
@@ -939,7 +940,7 @@ function ServicesSection({
             <div className="col-sm-6 col-lg-4" key={service.id}>
               <div className="service-card">
                 <div className="card-icon-wrap">
-                  <i className={`bi ${service.iconClass}`} style={{ fontSize: 52 }} />
+                  <ServiceIcon className="service-vector-icon card-service-vector" name={service.iconKey} title={service.name} />
                   <span className="card-category-badge">{service.categoryLabel ?? categoryLabels[service.category]}</span>
                 </div>
                 <div className="card-body-custom">
@@ -1576,7 +1577,7 @@ function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string
     serviceId: service.id,
     category,
     categoryLabel: apiCategory?.name ?? categoryLabels[category],
-    iconClass: getServiceIconClass(service.icon, searchableText, category),
+    iconKey: inferServiceIconKey([service.icon, searchableText].filter(Boolean).join(" "), getCategoryIconKey(category)),
     name: service.name,
     description: service.description,
     price: service.basePrice
@@ -1591,17 +1592,8 @@ function inferServiceCategory(value: string): ServiceCategoryId {
   return "deep";
 }
 
-function getServiceIconClass(icon: string | null | undefined, searchableText: string, category: ServiceCategoryId) {
-  const normalizedIcon = icon?.trim().replace(/^bi\s+/, "");
-  if (normalizedIcon?.startsWith("bi-")) return normalizedIcon;
-  if (/\b(ac|air conditioner|cooling)/.test(searchableText) || normalizedIcon === "ac") return "bi-snow";
-  if (/\b(tank|water|sintex)/.test(searchableText) || normalizedIcon === "tank") return "bi-droplet-fill";
-  if (/\b(sofa|couch|mattress|carpet)/.test(searchableText) || normalizedIcon === "sofa") return "bi-grid-1x2-fill";
-  if (/\b(electric|repair|tool|plumber|carpenter)/.test(searchableText) || normalizedIcon === "tools") return "bi-tools";
-  if (/\b(security|guard|facility)/.test(searchableText) || normalizedIcon === "security") return "bi-shield-check";
-  if (/\b(home|deep)/.test(searchableText) || normalizedIcon === "home") return "bi-house-heart-fill";
-  if (/\b(clean|sparkle|star|bath|toilet)/.test(searchableText) || normalizedIcon === "sparkle") return "bi-stars";
-  return categories.find((item) => item.id === category)?.iconClass ?? "bi-stars";
+function getCategoryIconKey(category: ServiceCategoryId): ServiceIconKey {
+  return categories.find((item) => item.id === category)?.iconKey ?? "cleaning";
 }
 
 function slugifyLabel(value: string) {

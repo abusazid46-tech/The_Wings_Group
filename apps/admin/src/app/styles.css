@@ -607,6 +607,16 @@ textarea {
   letter-spacing: 0.04em;
 }
 
+.field-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
 .form-grid input,
 .form-grid select,
 .form-grid textarea {
@@ -632,6 +642,46 @@ textarea {
 
 .check-row input {
   width: auto;
+}
+
+.icon-picker-field {
+  display: block;
+}
+
+.icon-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: 8px;
+}
+
+.icon-choice {
+  min-height: 74px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  color: var(--muted);
+  font-family: inherit;
+  font-weight: 850;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.icon-choice:hover,
+.icon-choice.selected {
+  border-color: var(--sky);
+  background: #eef7ff;
+  color: var(--sky);
+}
+
+.admin-service-vector {
+  width: 28px;
+  height: 28px;
+  display: block;
+  stroke-width: 1.8;
 }
 
 .form-actions,
@@ -667,6 +717,25 @@ textarea {
   grid-template-columns: 1fr auto;
   gap: 12px;
   align-items: start;
+}
+
+.service-row-main {
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+
+.service-row-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef7ff;
+  color: var(--sky);
 }
 
 .lead-row {

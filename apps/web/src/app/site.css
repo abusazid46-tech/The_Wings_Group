@@ -407,6 +407,17 @@ a {
   position: relative;
 }
 
+.service-vector-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.quick-service-vector {
+  width: 30px;
+  height: 30px;
+  stroke-width: 1.9;
+}
+
 .uc-time-badge {
   position: absolute;
   bottom: -7px;
@@ -559,6 +570,7 @@ a {
 .category-tab {
   display: inline-flex;
   align-items: center;
+  gap: 8px;
   margin: 5px;
   border-radius: 30px;
   padding: 9px 16px;
@@ -568,6 +580,11 @@ a {
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
+}
+
+.category-vector {
+  width: 17px;
+  height: 17px;
 }
 
 .category-tab.active {
@@ -600,6 +617,13 @@ a {
   justify-content: center;
   position: relative;
   color: var(--sky);
+}
+
+.card-service-vector {
+  width: 58px;
+  height: 58px;
+  stroke-width: 1.65;
+  filter: drop-shadow(0 8px 14px rgba(26,111,168,0.12));
 }
 
 .card-category-badge {
