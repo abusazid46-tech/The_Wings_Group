@@ -5,6 +5,7 @@ import type {
   AuthSession,
   Booking,
   BookingCreateInput,
+  OfferBanner,
   PaymentMode,
   RazorpayOrderResponse,
   Service as ApiService,
@@ -107,6 +108,9 @@ type BookingHistoryItem = {
 
 const bookingHistoryKey = "twg_customer_bookings";
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+const serviceCity = "Agartala";
+const agartalaCenter = { lat: 23.8315, lng: 91.2868 };
+const agartalaServiceRadiusKm = 25;
 
 export function CustomerHome() {
   const [placeholder, setPlaceholder] = useState("Search for 'Bathroom Cleaning'");
@@ -123,6 +127,7 @@ export function CustomerHome() {
   const [category, setCategory] = useState<"all" | ServiceCategoryId>("all");
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [serviceCatalog, setServiceCatalog] = useState<ServiceItem[]>(services);
+  const [offerBanners, setOfferBanners] = useState<OfferBanner[]>([]);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState<BookingFormErrors>({});
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
@@ -181,9 +186,10 @@ export function CustomerHome() {
     async function loadServiceCatalog() {
       try {
         const api = createApiClient();
-        const [servicesResponse, categoriesResponse] = await Promise.all([
+        const [servicesResponse, categoriesResponse, offersResponse] = await Promise.all([
           api.getServices(),
-          api.getServiceCategories().catch(() => ({ data: [] as ApiServiceCategory[] }))
+          api.getServiceCategories().catch(() => ({ data: [] as ApiServiceCategory[] })),
+          api.getActiveOfferBanners().catch(() => ({ data: [] as OfferBanner[] }))
         ]);
         if (!mounted) return;
 
@@ -194,9 +200,11 @@ export function CustomerHome() {
         } else {
           setServiceCatalog(services);
         }
+        setOfferBanners(offersResponse.data);
       } catch {
         if (!mounted) return;
         setServiceCatalog(services);
+        setOfferBanners([]);
       }
     }
 
@@ -243,6 +251,7 @@ export function CustomerHome() {
   const cartItems = Object.values(cart);
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const cartCount = cartItems.reduce((sum, item) => sum + item.quantity, 0);
+  const activeOffer = useMemo(() => chooseOfferBanner(offerBanners, cartItems), [cartItems, offerBanners]);
 
   function addService(service: ServiceItem) {
     setCart((current) => {
@@ -295,7 +304,7 @@ export function CustomerHome() {
     setForm((current) => ({
       ...current,
       address: current.address || location.address,
-      city: current.city || "Agartala",
+      city: serviceCity,
       date: current.date || getTodayInputValue()
     }));
   }
@@ -321,6 +330,26 @@ export function CustomerHome() {
     resetBookingState();
     prepareBookingForm();
     setBookingModalOpen(true);
+  }
+
+  function bookOffer(offer: OfferBanner) {
+    if (offer.serviceId) {
+      const service = serviceCatalog.find((item) => item.serviceId === offer.serviceId);
+      if (service) {
+        setCart({ [String(service.id)]: { ...service, quantity: 1 } });
+        resetBookingState();
+        prepareBookingForm();
+        setBookingModalOpen(true);
+        return;
+      }
+    }
+
+    if (offer.service?.name) {
+      setSearchQuery(offer.service.name);
+    } else if (offer.category?.name) {
+      setSearchQuery(offer.category.name);
+    }
+    document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
   }
 
   function openCart() {
@@ -367,12 +396,24 @@ export function CustomerHome() {
   }
 
   function selectLocation(choice: LocationChoice) {
-    setLocation(choice);
+    if (!isSupportedAgartalaLocation(choice)) {
+      setLocationStatus("Service is currently available only in Agartala. Please choose an Agartala address.");
+      return;
+    }
+
+    const normalizedChoice = {
+      ...choice,
+      label: hasAgartalaText(choice.label) ? choice.label : `${choice.label}, ${serviceCity}`,
+      address: hasAgartalaText(choice.address) ? choice.address : `${choice.address}, ${serviceCity}`
+    };
+
+    setLocation(normalizedChoice);
     setForm((current) => ({
       ...current,
-      address: current.address || choice.address
+      address: current.address || normalizedChoice.address,
+      city: serviceCity
     }));
-    setLocationStatus(`Service location set to ${choice.label}.`);
+    setLocationStatus(`Service location set to ${normalizedChoice.label}.`);
     setLocationModalOpen(false);
   }
 
@@ -386,6 +427,10 @@ export function CustomerHome() {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         const coords = `${position.coords.latitude.toFixed(5)}, ${position.coords.longitude.toFixed(5)}`;
+        if (!isWithinAgartalaServiceArea(position.coords.latitude, position.coords.longitude)) {
+          setLocationStatus("Your current location is outside our Agartala service area. Please enter an Agartala address.");
+          return;
+        }
         selectLocation({
           label: "Current location",
           address: `Current location coordinates: ${coords}`,
@@ -623,7 +668,7 @@ export function CustomerHome() {
         onOpenAuth={() => setAuthModalOpen(true)}
         onSignOut={signOut}
       />
-      <PromoPanel />
+      {activeOffer && <PromoPanel offer={activeOffer} onBook={bookOffer} />}
       <Hero onQuickBook={quickBook} />
       <TrustBar />
       <ServicesSection
@@ -780,7 +825,34 @@ function getUserInitial(session: AuthSession) {
   return value.trim().charAt(0).toUpperCase();
 }
 
-function PromoPanel() {
+function PromoPanel({ offer, onBook }: { offer: OfferBanner; onBook: (offer: OfferBanner) => void }) {
+  const imageUrl = offer.imageUrl || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=900&q=85&fit=crop&crop=center";
+  const title = offer.offerPrice != null ? `just Rs. ${offer.offerPrice.toLocaleString()}` : offer.title;
+
+  return (
+    <section className="promo-panel" aria-label="Limited time service offer">
+      <div className="container">
+        <div className="promo-panel-inner">
+          <div className="promo-copy">
+            <div className="promo-price">
+              {title}
+              {offer.originalPrice != null && <del>Rs. {offer.originalPrice.toLocaleString()}</del>}
+            </div>
+            <div className="promo-offer">{offer.discountText || offer.subtitle || offer.title}</div>
+            {offer.subtitle && offer.discountText && <div className="promo-subtitle">{offer.subtitle}</div>}
+            <button className="promo-action" type="button" onClick={() => onBook(offer)}>
+              {offer.ctaLabel || "Book now"} <i className="bi bi-arrow-right" />
+            </button>
+          </div>
+          <img className="promo-image" src={imageUrl} alt={offer.service?.name || offer.category?.name || offer.title} />
+        </div>
+      </div>
+    </section>
+  );
+
+}
+
+/*
   return (
     <section className="promo-panel" aria-label="Limited time service offer">
       <div className="container">
@@ -800,6 +872,7 @@ function PromoPanel() {
     </section>
   );
 }
+*/
 
 function Hero({ onQuickBook }: { onQuickBook: (query: string, price: number, scrollOnly?: boolean) => void }) {
   return (
@@ -1737,6 +1810,49 @@ function getTodayInputValue() {
   return new Date().toISOString().split("T")[0] ?? "";
 }
 
+function chooseOfferBanner(offers: OfferBanner[], cartItems: CartItem[]) {
+  if (offers.length === 0) return null;
+  const selectedServiceIds = new Set(cartItems.map((item) => item.serviceId).filter(Boolean));
+  return (
+    offers.find((offer) => offer.serviceId && selectedServiceIds.has(offer.serviceId)) ??
+    offers.find((offer) => offer.serviceId) ??
+    offers.find((offer) => offer.categoryId) ??
+    offers[0] ??
+    null
+  );
+}
+
+function isSupportedAgartalaLocation(choice: LocationChoice) {
+  if (choice.coords) {
+    const [lat, lng] = choice.coords.split(",").map((value) => Number(value.trim()));
+    return lat !== undefined && lng !== undefined && Number.isFinite(lat) && Number.isFinite(lng) && isWithinAgartalaServiceArea(lat, lng);
+  }
+
+  return hasAgartalaText(`${choice.label} ${choice.address}`);
+}
+
+function hasAgartalaText(value: string) {
+  return value.trim().toLowerCase().includes("agartala");
+}
+
+function isWithinAgartalaServiceArea(lat: number, lng: number) {
+  return distanceKm(lat, lng, agartalaCenter.lat, agartalaCenter.lng) <= agartalaServiceRadiusKm;
+}
+
+function distanceKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(lat2 - lat1);
+  const dLng = toRadians(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
 function validateBookingForm(form: BookingForm, cartItems: CartItem[]) {
   const errors: BookingFormErrors = {};
   const today = getTodayInputValue();
@@ -1745,6 +1861,7 @@ function validateBookingForm(form: BookingForm, cartItems: CartItem[]) {
   if (!/^[6-9]\d{9}$/.test(form.phone)) errors.phone = "Enter a valid 10-digit Indian mobile number.";
   if (!form.address || form.address.length < 8) errors.address = "Enter the full address with landmark.";
   if (!form.city || form.city.length < 2) errors.city = "Enter the service city.";
+  if (!hasAgartalaText(`${form.city} ${form.address}`)) errors.city = "We currently serve Agartala only.";
   if (!form.date) errors.date = "Choose a service date.";
   if (form.date && form.date < today) errors.date = "Choose today or a future date.";
   if (!form.time) errors.time = "Choose a preferred time slot.";

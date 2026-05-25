@@ -9,6 +9,9 @@ process.env.CORS_ORIGIN = "http://localhost:3000";
 process.env.OTP_DEBUG_ENABLED = "true";
 process.env.RAZORPAY_KEY_ID = "";
 process.env.RAZORPAY_KEY_SECRET = "";
+process.env.WHATSAPP_PHONE_NUMBER_ID = "";
+process.env.WHATSAPP_ACCESS_TOKEN = "";
+process.env.WHATSAPP_ADMIN_PHONE = "";
 
 type FakeRole = "CUSTOMER" | "ADMIN" | "MANAGER" | "STAFF";
 
@@ -65,6 +68,7 @@ const state = {
   payments: [] as Array<Record<string, unknown>>,
   leads: [] as Array<Record<string, unknown>>,
   services: [] as Array<Record<string, unknown>>,
+  offerBanners: [] as Array<Record<string, unknown>>,
   serviceCategories: [] as FakeServiceCategory[],
   notes: [] as Array<Record<string, unknown>>
 };
@@ -84,6 +88,7 @@ function resetState() {
   state.payments = [];
   state.leads = [];
   state.services = [];
+  state.offerBanners = [];
   state.serviceCategories = [];
   state.notes = [];
 }
@@ -268,6 +273,46 @@ const fakePrisma: any = {
       return service;
     }
   },
+  offerBanner: {
+    findMany: async ({ where }: any = {}) => {
+      let offers = [...state.offerBanners];
+      if (where?.isActive !== undefined) {
+        offers = offers.filter((offer) => offer.isActive === where.isActive);
+      }
+      return offers;
+    },
+    create: async ({ data }: any) => {
+      const now = new Date();
+      const offer = {
+        id: nextId("offer"),
+        subtitle: null,
+        serviceId: null,
+        categoryId: null,
+        imageUrl: null,
+        ctaLabel: "Book now",
+        offerPrice: null,
+        originalPrice: null,
+        discountText: null,
+        sortOrder: 0,
+        isActive: true,
+        startsAt: null,
+        endsAt: null,
+        service: null,
+        category: null,
+        createdAt: now,
+        updatedAt: now,
+        ...data
+      };
+      state.offerBanners.push(offer);
+      return offer;
+    },
+    update: async ({ where, data }: any) => {
+      const offer = state.offerBanners.find((item) => item.id === where.id);
+      if (!offer) throw new Error("Offer not found");
+      Object.assign(offer, data, { updatedAt: new Date() });
+      return offer;
+    }
+  },
   serviceCategory: {
     count: async () => state.serviceCategories.length,
     createMany: async ({ data }: any) => {
@@ -392,6 +437,21 @@ describe("auth, authorization, booking, and payment API", () => {
     const otherCustomer = createFakeUser("CUSTOMER", { phone: "9876543212" });
     await request(app).get(`/bookings/${created.body.data.bookingCode}`).set("Cookie", cookieFor(otherCustomer)).expect(403);
     await request(app).get(`/bookings/${created.body.data.bookingCode}`).set("Cookie", cookieFor(customer)).expect(200);
+  });
+
+  it("rejects customer bookings outside the Agartala service area", async () => {
+    const customer = createFakeUser("CUSTOMER", { phone: "9876543210", name: "Test Customer" });
+    await request(app)
+      .post("/bookings")
+      .set("Cookie", cookieFor(customer))
+      .send({
+        ...bookingPayload,
+        addressLine: "GS Road, Guwahati",
+        city: "Guwahati"
+      })
+      .expect(422);
+
+    expect(state.bookings).toHaveLength(0);
   });
 
   it("repairs missing CRM leads for customers who already have booking history", async () => {
@@ -526,6 +586,35 @@ describe("auth, authorization, booking, and payment API", () => {
       name: "Sofa Shampoo Premium",
       basePrice: 899
     });
+  });
+
+  it("lets admins create offer banners and public users read active offers", async () => {
+    const admin = createFakeUser("ADMIN", { phone: "9876543211" });
+    const created = await request(app)
+      .post("/offers")
+      .set("Cookie", cookieFor(admin))
+      .send({
+        title: "Bathroom Cleaning Launch Offer",
+        subtitle: "Only for Agartala customers",
+        ctaLabel: "Book now",
+        offerPrice: "Rs. 99",
+        originalPrice: "245",
+        discountText: "60% OFF",
+        sortOrder: "1",
+        isActive: "true"
+      })
+      .expect(201);
+
+    expect(created.body.data).toMatchObject({
+      title: "Bathroom Cleaning Launch Offer",
+      offerPrice: 99,
+      originalPrice: 245,
+      isActive: true
+    });
+
+    const active = await request(app).get("/offers/active").expect(200);
+    expect(active.body.data).toHaveLength(1);
+    expect(active.body.data[0].title).toBe("Bathroom Cleaning Launch Offer");
   });
 
   it("lets admins create CRM leads and update an existing phone instead of making duplicates", async () => {

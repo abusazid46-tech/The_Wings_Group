@@ -11,6 +11,9 @@ import type {
   Lead,
   LeadCreateInput,
   LeadUpdateInput,
+  OfferBanner,
+  OfferBannerCreateInput,
+  OfferBannerUpdateInput,
   OtpRequestInput,
   OtpRequestResponse,
   OtpVerifyInput,
@@ -157,6 +160,38 @@ export class ApiClient {
 
   async deleteService(id: string) {
     return this.request<{ data: Service }>(`/services/${encodeURIComponent(id)}`, {
+      method: "DELETE"
+    });
+  }
+
+  async getActiveOfferBanners(options?: { serviceId?: string; categoryId?: string }) {
+    const params = new URLSearchParams();
+    if (options?.serviceId) params.set("serviceId", options.serviceId);
+    if (options?.categoryId) params.set("categoryId", options.categoryId);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request<{ data: OfferBanner[] }>(`/offers/active${query}`);
+  }
+
+  async getOfferBanners() {
+    return this.request<{ data: OfferBanner[] }>("/offers");
+  }
+
+  async createOfferBanner(input: OfferBannerCreateInput) {
+    return this.request<{ data: OfferBanner }>("/offers", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async updateOfferBanner(id: string, input: OfferBannerUpdateInput) {
+    return this.request<{ data: OfferBanner }>(`/offers/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input)
+    });
+  }
+
+  async deleteOfferBanner(id: string) {
+    return this.request<{ data: OfferBanner }>(`/offers/${encodeURIComponent(id)}`, {
       method: "DELETE"
     });
   }

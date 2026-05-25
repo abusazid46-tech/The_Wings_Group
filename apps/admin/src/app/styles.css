@@ -696,6 +696,7 @@ textarea {
 }
 
 .service-list,
+.offer-list,
 .lead-list,
 .note-list,
 .shortcut-list,
@@ -705,6 +706,7 @@ textarea {
 }
 
 .service-row,
+.offer-row,
 .lead-row,
 .note-row,
 .shortcut-row,
@@ -717,11 +719,17 @@ textarea {
 }
 
 .service-row,
+.offer-row,
 .lead-row {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 12px;
   align-items: start;
+}
+
+.offer-row {
+  grid-template-columns: 86px 1fr auto;
+  align-items: center;
 }
 
 .service-row-main {
@@ -730,6 +738,30 @@ textarea {
   gap: 12px;
   align-items: start;
   min-width: 0;
+}
+
+.offer-row-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.offer-row img,
+.offer-image-fallback {
+  width: 74px;
+  height: 58px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #eef7ff;
+  color: var(--sky);
+}
+
+.offer-image-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .service-row-icon {
@@ -749,6 +781,10 @@ textarea {
 
 .service-row.inactive {
   opacity: 0.55;
+}
+
+.offer-row.inactive {
+  opacity: 0.58;
 }
 
 .note-row {

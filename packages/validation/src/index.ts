@@ -20,6 +20,24 @@ export const serviceCreateSchema = z.object({
 
 export const serviceUpdateSchema = serviceCreateSchema.partial();
 
+export const offerBannerCreateSchema = z.object({
+  title: z.string().trim().min(2),
+  subtitle: z.string().trim().optional().nullable(),
+  serviceId: z.string().trim().optional().nullable(),
+  categoryId: z.string().trim().optional().nullable(),
+  imageUrl: z.string().trim().url().optional().nullable(),
+  ctaLabel: z.string().trim().min(2).default("Book now"),
+  offerPrice: z.number().int().nonnegative().optional().nullable(),
+  originalPrice: z.number().int().nonnegative().optional().nullable(),
+  discountText: z.string().trim().optional().nullable(),
+  sortOrder: z.number().int().default(0),
+  isActive: z.boolean().default(true),
+  startsAt: z.string().datetime().optional().nullable(),
+  endsAt: z.string().datetime().optional().nullable()
+});
+
+export const offerBannerUpdateSchema = offerBannerCreateSchema.partial();
+
 export const bookingItemSchema = z.object({
   serviceId: z.string().optional(),
   serviceName: z.string().min(2),
@@ -100,6 +118,8 @@ export const razorpayVerifySchema = z.object({
 
 export type ServiceCreateInput = z.infer<typeof serviceCreateSchema>;
 export type ServiceUpdateInput = z.infer<typeof serviceUpdateSchema>;
+export type OfferBannerCreateInput = z.infer<typeof offerBannerCreateSchema>;
+export type OfferBannerUpdateInput = z.infer<typeof offerBannerUpdateSchema>;
 export type BookingCreateInput = z.infer<typeof bookingCreateSchema>;
 export type OtpRequestInput = z.infer<typeof otpRequestSchema>;
 export type OtpVerifyInput = z.infer<typeof otpVerifySchema>;

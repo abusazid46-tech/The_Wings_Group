@@ -37,6 +37,27 @@ export type Service = {
   isActive: boolean;
 };
 
+export type OfferBanner = {
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  serviceId?: string | null;
+  categoryId?: string | null;
+  imageUrl?: string | null;
+  ctaLabel: string;
+  offerPrice?: number | null;
+  originalPrice?: number | null;
+  discountText?: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  service?: Service | null;
+  category?: ServiceCategory | null;
+};
+
 export type BookingItemInput = {
   serviceId?: string;
   serviceName: string;
@@ -187,6 +208,24 @@ export type ServiceCreateInput = {
 };
 
 export type ServiceUpdateInput = Partial<ServiceCreateInput>;
+
+export type OfferBannerCreateInput = {
+  title: string;
+  subtitle?: string | null;
+  serviceId?: string | null;
+  categoryId?: string | null;
+  imageUrl?: string | null;
+  ctaLabel?: string;
+  offerPrice?: number | null;
+  originalPrice?: number | null;
+  discountText?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+export type OfferBannerUpdateInput = Partial<OfferBannerCreateInput>;
 
 export type Lead = {
   id: string;

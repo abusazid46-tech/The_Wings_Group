@@ -87,6 +87,13 @@ bookingsRouter.patch("/:bookingCode/status", ...requireRoles("ADMIN", "MANAGER",
 bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 * 60 * 1000, max: 20 }), requireAuth, async (req, res, next) => {
   try {
     const input = bookingCreateSchema.parse(req.body);
+    if (!isAgartalaServiceArea(input.city)) {
+      return res.status(422).json({
+        error: "Service is currently available only in Agartala.",
+        detail: "Please choose an Agartala address before booking."
+      });
+    }
+
     const authUser = (req as AuthedRequest).authUser;
     const bookingUserId = authUser.id;
 
@@ -178,6 +185,14 @@ bookingsRouter.post("/", rateLimit({ keyPrefix: "booking-create", windowMs: 15 *
     next(error);
   }
 });
+
+function isAgartalaServiceArea(city: string) {
+  return normalizeLocationText(city).includes("agartala");
+}
+
+function normalizeLocationText(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 async function syncBookingLead(
   tx: Prisma.TransactionClient,

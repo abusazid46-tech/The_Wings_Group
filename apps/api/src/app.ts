@@ -10,6 +10,7 @@ import { bookingsRouter } from "./routes/bookings.js";
 import { crmRouter } from "./routes/crm.js";
 import { healthRouter } from "./routes/health.js";
 import { leadsRouter } from "./routes/leads.js";
+import { offersRouter } from "./routes/offers.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { servicesRouter } from "./routes/services.js";
 import { reportError } from "./services/logger.js";
@@ -35,6 +36,7 @@ export function createApp() {
   app.use("/admin", adminRouter);
   app.use("/services", servicesRouter);
   app.use("/bookings", bookingsRouter);
+  app.use("/offers", offersRouter);
   app.use("/payments", paymentsRouter);
   app.use("/leads", leadsRouter);
   app.use("/crm", crmRouter);

@@ -11,6 +11,8 @@ import type {
   CustomerSummary,
   Lead,
   LeadStatus,
+  OfferBanner,
+  OfferBannerCreateInput,
   Service,
   ServiceCategory,
   ServiceCreateInput
@@ -18,7 +20,7 @@ import type {
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeServiceIconKey, resolveServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
 
-type TabId = "dashboard" | "bookings" | "services" | "customers" | "leads" | "whatsapp";
+type TabId = "dashboard" | "bookings" | "services" | "offers" | "customers" | "leads" | "whatsapp";
 type DataMode = "loading" | "live" | "demo";
 type AuthMode = "checking" | "unauthenticated" | "forbidden" | "authenticated";
 type LiveStatus = "idle" | "connecting" | "connected" | "syncing" | "reconnecting" | "offline";
@@ -109,6 +111,23 @@ type LeadForm = {
 type NoteForm = {
   title: string;
   body: string;
+};
+
+type OfferForm = {
+  id: string;
+  title: string;
+  subtitle: string;
+  serviceId: string;
+  categoryId: string;
+  imageUrl: string;
+  ctaLabel: string;
+  offerPrice: string;
+  originalPrice: string;
+  discountText: string;
+  sortOrder: string;
+  startsAt: string;
+  endsAt: string;
+  isActive: boolean;
 };
 
 const bookingStatuses: BookingStatus[] = ["PENDING", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"];
@@ -281,6 +300,23 @@ const initialServiceForm: ServiceForm = {
   isActive: true
 };
 
+const initialOfferForm: OfferForm = {
+  id: "",
+  title: "",
+  subtitle: "",
+  serviceId: "",
+  categoryId: "",
+  imageUrl: "",
+  ctaLabel: "Book now",
+  offerPrice: "",
+  originalPrice: "",
+  discountText: "",
+  sortOrder: "0",
+  startsAt: "",
+  endsAt: "",
+  isActive: true
+};
+
 const initialLeadForm: LeadForm = {
   id: "",
   name: "",
@@ -306,8 +342,10 @@ export function AdminCrmDashboard() {
   const [categories, setCategories] = useState<ServiceCategory[]>(fallbackCategories);
   const [customers, setCustomers] = useState<CustomerSummary[]>(fallbackCustomers);
   const [leads, setLeads] = useState<Lead[]>(fallbackLeads);
+  const [offers, setOffers] = useState<OfferBanner[]>([]);
   const [notes, setNotes] = useState<CrmNote[]>(fallbackNotes);
   const [serviceForm, setServiceForm] = useState<ServiceForm>(initialServiceForm);
+  const [offerForm, setOfferForm] = useState<OfferForm>(initialOfferForm);
   const [leadForm, setLeadForm] = useState<LeadForm>(initialLeadForm);
   const [noteForm, setNoteForm] = useState<NoteForm>({ title: "", body: "" });
   const [query, setQuery] = useState("");
@@ -328,13 +366,14 @@ export function AdminCrmDashboard() {
   const loadAdminData = useCallback(async (reason = "manual") => {
     try {
       const api = createApiClient();
-      const [dashboardRes, bookingsRes, servicesRes, categoriesRes, customersRes, leadsRes, notesRes] = await Promise.all([
+      const [dashboardRes, bookingsRes, servicesRes, categoriesRes, customersRes, leadsRes, offersRes, notesRes] = await Promise.all([
         api.getAdminDashboard(),
         api.getBookings(),
         api.getServices({ includeInactive: true }),
         api.getServiceCategories(),
         api.getCustomers(),
         api.getLeads(),
+        api.getOfferBanners().catch(() => ({ data: [] as OfferBanner[] })),
         api.getCrmNotes()
       ]);
 
@@ -350,6 +389,7 @@ export function AdminCrmDashboard() {
       );
       setCustomers(customersRes.data);
       setLeads(leadsRes.data);
+      setOffers(offersRes.data);
       setNotes(notesRes.data);
       setMode("live");
       setLastSyncedAt(new Date().toISOString());
@@ -358,6 +398,7 @@ export function AdminCrmDashboard() {
         reason,
         bookings: bookingsRes.data.length,
         services: servicesRes.data.length,
+        offers: offersRes.data.length,
         leads: leadsRes.data.length
       });
       return true;
@@ -520,6 +561,17 @@ export function AdminCrmDashboard() {
     return leads.filter((lead) => [lead.name, lead.phone, lead.email, lead.source, lead.status].join(" ").toLowerCase().includes(value));
   }, [leads, query]);
 
+  const filteredOffers = useMemo(() => {
+    const value = query.trim().toLowerCase();
+    if (!value) return offers;
+    return offers.filter((offer) =>
+      [offer.title, offer.subtitle, offer.discountText, offer.service?.name, offer.category?.name, offer.isActive ? "active" : "inactive"]
+        .join(" ")
+        .toLowerCase()
+        .includes(value)
+    );
+  }, [offers, query]);
+
   function setServiceField(field: keyof ServiceForm, value: string | boolean) {
     setServiceForm((current) => ({
       ...current,
@@ -530,6 +582,10 @@ export function AdminCrmDashboard() {
 
   function setLeadField(field: keyof LeadForm, value: string) {
     setLeadForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function setOfferField(field: keyof OfferForm, value: string | boolean) {
+    setOfferForm((current) => ({ ...current, [field]: value }));
   }
 
   async function saveService(event: FormEvent<HTMLFormElement>) {
@@ -629,6 +685,118 @@ export function AdminCrmDashboard() {
     setServices((current) => {
       const exists = current.some((item) => item.id === service.id);
       return exists ? current.map((item) => (item.id === service.id ? service : item)) : [service, ...current];
+    });
+  }
+
+  async function saveOffer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const offerPrice = parseOptionalAdminInteger(offerForm.offerPrice);
+    const originalPrice = parseOptionalAdminInteger(offerForm.originalPrice);
+    const sortOrder = parseOptionalAdminInteger(offerForm.sortOrder);
+    const payload: OfferBannerCreateInput = {
+      title: offerForm.title.trim(),
+      subtitle: offerForm.subtitle.trim() || null,
+      serviceId: offerForm.serviceId || null,
+      categoryId: offerForm.categoryId || null,
+      imageUrl: offerForm.imageUrl.trim() || null,
+      ctaLabel: offerForm.ctaLabel.trim() || "Book now",
+      offerPrice: offerPrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountText: offerForm.discountText.trim() || null,
+      sortOrder: sortOrder ?? 0,
+      startsAt: offerForm.startsAt ? new Date(offerForm.startsAt).toISOString() : null,
+      endsAt: offerForm.endsAt ? new Date(offerForm.endsAt).toISOString() : null,
+      isActive: offerForm.isActive
+    };
+    const offerError = validateOfferPayload(payload, { offerPrice, originalPrice, sortOrder });
+    if (offerError) {
+      setNotice(offerError);
+      return;
+    }
+
+    try {
+      const api = createApiClient();
+      adminConsole("info", "Saving offer payload", payload);
+      const response = offerForm.id ? await api.updateOfferBanner(offerForm.id, payload) : await api.createOfferBanner(payload);
+      upsertOffer(response.data);
+      await loadAdminData("offer-save");
+      setMode("live");
+      setNotice(offerForm.id ? "Offer banner updated." : "Offer banner created.");
+      pushActivity({
+        title: offerForm.id ? "Offer updated" : "Offer created",
+        detail: `${response.data.title} is ${response.data.isActive ? "active" : "inactive"} on the customer website.`,
+        tone: "success"
+      });
+      adminConsole("info", offerForm.id ? "Offer updated" : "Offer created", response.data);
+    } catch (error) {
+      setMode("loading");
+      setNotice(`Offer was not saved. ${getApiErrorMessage(error)}`);
+      pushActivity({
+        title: "Offer save failed",
+        detail: getApiErrorMessage(error),
+        tone: "danger"
+      });
+      adminConsole("error", "Offer save failed", error);
+      return;
+    }
+
+    setOfferForm(initialOfferForm);
+  }
+
+  function editOffer(offer: OfferBanner) {
+    setOfferForm({
+      id: offer.id,
+      title: offer.title,
+      subtitle: offer.subtitle ?? "",
+      serviceId: offer.serviceId ?? "",
+      categoryId: offer.categoryId ?? "",
+      imageUrl: offer.imageUrl ?? "",
+      ctaLabel: offer.ctaLabel,
+      offerPrice: offer.offerPrice != null ? String(offer.offerPrice) : "",
+      originalPrice: offer.originalPrice != null ? String(offer.originalPrice) : "",
+      discountText: offer.discountText ?? "",
+      sortOrder: String(offer.sortOrder ?? 0),
+      startsAt: toDateTimeLocalValue(offer.startsAt),
+      endsAt: toDateTimeLocalValue(offer.endsAt),
+      isActive: offer.isActive
+    });
+    setActiveTab("offers");
+    setNotice(`Editing offer ${offer.title}.`);
+    pushActivity({
+      title: "Offer edit mode opened",
+      detail: `${offer.title} is loaded in the offer editor.`,
+      tone: "info"
+    });
+  }
+
+  async function deleteOffer(offer: OfferBanner) {
+    try {
+      const response = await createApiClient().deleteOfferBanner(offer.id);
+      upsertOffer(response.data);
+      setMode("live");
+      setNotice("Offer banner disabled.");
+      pushActivity({
+        title: "Offer disabled",
+        detail: `${offer.title} is now hidden from the customer website.`,
+        tone: "warning"
+      });
+      adminConsole("warn", "Offer disabled", response.data);
+    } catch (error) {
+      setMode("loading");
+      setNotice(`Offer was not disabled. ${getApiErrorMessage(error)}`);
+      pushActivity({
+        title: "Offer disable failed",
+        detail: getApiErrorMessage(error),
+        tone: "danger"
+      });
+      adminConsole("error", "Offer disable failed", error);
+    }
+  }
+
+  function upsertOffer(offer: OfferBanner) {
+    setOffers((current) => {
+      const exists = current.some((item) => item.id === offer.id);
+      return exists ? current.map((item) => (item.id === offer.id ? offer : item)) : [offer, ...current];
     });
   }
 
@@ -909,6 +1077,7 @@ export function AdminCrmDashboard() {
             ["dashboard", "Dashboard"],
             ["bookings", "Bookings"],
             ["services", "Services"],
+            ["offers", "Offers"],
             ["customers", "Customers"],
             ["leads", "CRM Leads"],
             ["whatsapp", "WhatsApp"]
@@ -947,6 +1116,7 @@ export function AdminCrmDashboard() {
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search bookings, customers, leads..." />
           <button type="button" onClick={refreshAdminData}>Refresh Live Data</button>
           <button type="button" onClick={() => setActiveTab("services")}>Add Service</button>
+          <button type="button" onClick={() => setActiveTab("offers")}>Add Offer</button>
           <button type="button" onClick={() => setActiveTab("leads")}>Add Lead</button>
         </div>
 
@@ -990,6 +1160,26 @@ export function AdminCrmDashboard() {
             <section className="panel">
               <PanelHead title="Service Catalog" subtitle="Inactive services stay hidden from customer browsing." />
               <ServiceTable services={services} categories={categories} onEdit={editService} onDelete={deleteService} />
+            </section>
+          </div>
+        )}
+
+        {activeTab === "offers" && (
+          <div className="split-grid">
+            <section className={`panel ${offerForm.id ? "editing-panel" : ""}`}>
+              <PanelHead title={offerForm.id ? "Edit Offer" : "Add Offer"} subtitle="Create homepage banners that can be general, category-specific, or service-specific." />
+              <OfferFormView
+                form={offerForm}
+                services={services}
+                categories={categories}
+                onChange={setOfferField}
+                onSubmit={saveOffer}
+                onReset={() => setOfferForm(initialOfferForm)}
+              />
+            </section>
+            <section className="panel">
+              <PanelHead title="Offer Banners" subtitle="Active banners appear on the customer website when the schedule allows." />
+              <OfferList offers={filteredOffers} services={services} categories={categories} onEdit={editOffer} onDelete={deleteOffer} />
             </section>
           </div>
         )}
@@ -1510,6 +1700,140 @@ function ServiceTable({
   );
 }
 
+function OfferFormView({
+  form,
+  services,
+  categories,
+  onChange,
+  onSubmit,
+  onReset
+}: {
+  form: OfferForm;
+  services: Service[];
+  categories: ServiceCategory[];
+  onChange: (field: keyof OfferForm, value: string | boolean) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onReset: () => void;
+}) {
+  return (
+    <form className="form-grid" onSubmit={onSubmit}>
+      <label>
+        Title
+        <input value={form.title} onChange={(event) => onChange("title", event.target.value)} placeholder="just Rs. 99" />
+      </label>
+      <label>
+        CTA Label
+        <input value={form.ctaLabel} onChange={(event) => onChange("ctaLabel", event.target.value)} placeholder="Book now" />
+      </label>
+      <label className="wide">
+        Subtitle
+        <input value={form.subtitle} onChange={(event) => onChange("subtitle", event.target.value)} placeholder="60% OFF on selected services" />
+      </label>
+      <label>
+        Target Service
+        <select value={form.serviceId} onChange={(event) => onChange("serviceId", event.target.value)}>
+          <option value="">General offer</option>
+          {services.map((service) => (
+            <option value={service.id} key={service.id}>{service.name}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Target Category
+        <select value={form.categoryId} onChange={(event) => onChange("categoryId", event.target.value)}>
+          <option value="">No category target</option>
+          {categories.map((category) => (
+            <option value={category.id} key={category.id}>{category.name}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Offer Price
+        <input value={form.offerPrice} onChange={(event) => onChange("offerPrice", event.target.value)} inputMode="numeric" placeholder="99" />
+      </label>
+      <label>
+        Original Price
+        <input value={form.originalPrice} onChange={(event) => onChange("originalPrice", event.target.value)} inputMode="numeric" placeholder="245" />
+      </label>
+      <label>
+        Discount Text
+        <input value={form.discountText} onChange={(event) => onChange("discountText", event.target.value)} placeholder="60% OFF" />
+      </label>
+      <label>
+        Sort Order
+        <input value={form.sortOrder} onChange={(event) => onChange("sortOrder", event.target.value)} inputMode="numeric" placeholder="0" />
+      </label>
+      <label>
+        Starts At
+        <input value={form.startsAt} onChange={(event) => onChange("startsAt", event.target.value)} type="datetime-local" />
+      </label>
+      <label>
+        Ends At
+        <input value={form.endsAt} onChange={(event) => onChange("endsAt", event.target.value)} type="datetime-local" />
+      </label>
+      <label className="wide">
+        Banner Image URL
+        <input value={form.imageUrl} onChange={(event) => onChange("imageUrl", event.target.value)} placeholder="https://..." />
+      </label>
+      <label className="check-row">
+        <input checked={form.isActive} onChange={(event) => onChange("isActive", event.target.checked)} type="checkbox" />
+        Active offer
+      </label>
+      <div className="form-actions">
+        <button className="primary-button" type="submit">{form.id ? "Update Offer" : "Create Offer"}</button>
+        <button type="button" onClick={onReset}>{form.id ? "Cancel Edit" : "Reset"}</button>
+      </div>
+    </form>
+  );
+}
+
+function OfferList({
+  offers,
+  services,
+  categories,
+  onEdit,
+  onDelete
+}: {
+  offers: OfferBanner[];
+  services: Service[];
+  categories: ServiceCategory[];
+  onEdit: (offer: OfferBanner) => void;
+  onDelete: (offer: OfferBanner) => void;
+}) {
+  const serviceMap = new Map(services.map((service) => [service.id, service.name]));
+  const categoryMap = new Map(categories.map((category) => [category.id, category.name]));
+
+  if (offers.length === 0) {
+    return <div className="empty-activity">No offer banners yet. Create one to control the customer promo strip.</div>;
+  }
+
+  return (
+    <div className="offer-list">
+      {offers.map((offer) => {
+        const target = offer.serviceId
+          ? serviceMap.get(offer.serviceId) ?? offer.service?.name ?? "Selected service"
+          : offer.categoryId
+            ? categoryMap.get(offer.categoryId) ?? offer.category?.name ?? "Selected category"
+            : "Homepage general";
+        return (
+          <div className={`offer-row ${offer.isActive ? "" : "inactive"}`} key={offer.id}>
+            {offer.imageUrl ? <img src={offer.imageUrl} alt="" /> : <div className="offer-image-fallback">TWG</div>}
+            <div className="offer-row-main">
+              <strong>{offer.title}</strong>
+              <span>{target}</span>
+              <small>{formatOfferSummary(offer)}</small>
+            </div>
+            <div className="row-actions">
+              <button type="button" onClick={() => onEdit(offer)}>Edit</button>
+              <button type="button" onClick={() => onDelete(offer)}>{offer.isActive ? "Disable" : "Disabled"}</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CustomerTable({ customers, onWhatsapp }: { customers: CustomerSummary[]; onWhatsapp: (phone: string, message: string) => void }) {
   return (
     <div className="data-table customer-table">
@@ -1643,9 +1967,55 @@ function validateServicePayload(payload: ServiceCreateInput) {
   return "";
 }
 
+function validateOfferPayload(
+  payload: OfferBannerCreateInput,
+  numericValues: { offerPrice: number | undefined; originalPrice: number | undefined; sortOrder: number | undefined }
+) {
+  if (payload.title.trim().length < 2) return "Offer title must be at least 2 characters.";
+  if ((payload.ctaLabel ?? "").trim().length < 2) return "Offer CTA label must be at least 2 characters.";
+  if (numericValues.offerPrice !== undefined && (!Number.isInteger(numericValues.offerPrice) || numericValues.offerPrice < 0)) {
+    return "Offer price must be a whole number, zero or higher.";
+  }
+  if (numericValues.originalPrice !== undefined && (!Number.isInteger(numericValues.originalPrice) || numericValues.originalPrice < 0)) {
+    return "Original price must be a whole number, zero or higher.";
+  }
+  if (numericValues.sortOrder !== undefined && !Number.isInteger(numericValues.sortOrder)) return "Sort order must be a whole number.";
+  if (payload.startsAt && payload.endsAt && new Date(payload.startsAt).getTime() > new Date(payload.endsAt).getTime()) {
+    return "Offer start date must be before the end date.";
+  }
+
+  return "";
+}
+
 function parseAdminInteger(value: string) {
   const numericText = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0];
   return numericText ? Number(numericText) : Number.NaN;
+}
+
+function parseOptionalAdminInteger(value: string) {
+  if (!value.trim()) return undefined;
+  return parseAdminInteger(value);
+}
+
+function toDateTimeLocalValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60 * 1000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function formatOfferSummary(offer: OfferBanner) {
+  const parts = [
+    offer.discountText,
+    offer.offerPrice != null ? `Rs. ${offer.offerPrice.toLocaleString()}` : "",
+    offer.originalPrice != null ? `was Rs. ${offer.originalPrice.toLocaleString()}` : "",
+    offer.startsAt ? `starts ${formatDate(offer.startsAt)}` : "",
+    offer.endsAt ? `ends ${formatDate(offer.endsAt)}` : "",
+    offer.isActive ? "Active" : "Inactive"
+  ];
+
+  return parts.filter(Boolean).join(" - ");
 }
 
 function getApiErrorMessage(error: unknown) {
