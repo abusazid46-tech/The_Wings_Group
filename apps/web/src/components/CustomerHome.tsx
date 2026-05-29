@@ -71,7 +71,8 @@ const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey:
   { id: "tank", label: "Tank", iconKey: "tank" },
   { id: "ac", label: "AC & Electric", iconKey: "ac" },
   { id: "sofa", label: "Sofa & Appliances", iconKey: "sofa" },
-  { id: "deep", label: "Deep Clean", iconKey: "home" }
+  { id: "deep", label: "Deep Clean", iconKey: "home" },
+  { id: "security", label: "Security", iconKey: "security" }
 ];
 
 const initialForm = {
@@ -330,6 +331,14 @@ export function CustomerHome() {
     resetBookingState();
     prepareBookingForm();
     setBookingModalOpen(true);
+  }
+
+  function browseCategory(nextCategory: ServiceCategoryId) {
+    setCategory(nextCategory);
+    setSearchQuery("");
+    window.requestAnimationFrame(() => {
+      document.getElementById("services")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
   function bookOffer(offer: OfferBanner) {
@@ -669,12 +678,10 @@ export function CustomerHome() {
         onSignOut={signOut}
       />
       {activeOffer && <PromoPanel offer={activeOffer} onBook={bookOffer} />}
-      <Hero onQuickBook={quickBook} />
+      <Hero selectedCategory={category} onCategorySelect={browseCategory} />
       <TrustBar />
       <ServicesSection
-        category={category}
         searchQuery={searchQuery}
-        onCategoryChange={setCategory}
         services={filteredServices}
         cart={cart}
         onAdd={addService}
@@ -874,7 +881,13 @@ function PromoPanel({ offer, onBook }: { offer: OfferBanner; onBook: (offer: Off
 }
 */
 
-function Hero({ onQuickBook }: { onQuickBook: (query: string, price: number, scrollOnly?: boolean) => void }) {
+function Hero({
+  selectedCategory,
+  onCategorySelect
+}: {
+  selectedCategory: "all" | ServiceCategoryId;
+  onCategorySelect: (category: ServiceCategoryId) => void;
+}) {
   return (
     <section className="uc-hero">
       <div className="container">
@@ -889,10 +902,10 @@ function Hero({ onQuickBook }: { onQuickBook: (query: string, price: number, scr
               <div className="uc-svc-row">
                 {quickServices.map((service) => (
                   <button
-                    className="uc-svc-item"
+                    className={`uc-svc-item ${selectedCategory === service.category ? "active" : ""}`}
                     key={service.label}
                     type="button"
-                    onClick={() => onQuickBook(service.query, service.price, service.scrollOnly)}
+                    onClick={() => onCategorySelect(service.category)}
                   >
                     <div className="uc-svc-icon-wrap">
                       <ServiceIcon className="service-vector-icon quick-service-vector" name={service.iconKey} title={service.label} />
@@ -969,17 +982,13 @@ function TrustBar() {
 }
 
 function ServicesSection({
-  category,
   searchQuery,
-  onCategoryChange,
   services: visibleServices,
   cart,
   onAdd,
   onClearSearch
 }: {
-  category: "all" | ServiceCategoryId;
   searchQuery: string;
-  onCategoryChange: (category: "all" | ServiceCategoryId) => void;
   services: ServiceItem[];
   cart: Record<string, CartItem>;
   onAdd: (service: ServiceItem) => void;
@@ -991,13 +1000,6 @@ function ServicesSection({
         <div className="text-center mb-5">
           <div className="section-label">Our Services</div>
           <h2 className="section-title">Everything Your Home Needs,<br /><span>Under One Wing</span></h2>
-        </div>
-        <div className="text-center mb-4">
-          {categories.map((item) => (
-            <button className={`category-tab ${category === item.id ? "active" : ""}`} key={item.id} onClick={() => onCategoryChange(item.id)} type="button">
-              <ServiceIcon className="service-vector-icon category-vector" name={item.iconKey} title={item.label} /> {item.label}
-            </button>
-          ))}
         </div>
         <div className="row g-4">
           {visibleServices.length === 0 ? (
@@ -1662,6 +1664,7 @@ function inferServiceCategory(value: string): ServiceCategoryId {
   if (/\b(tank|water|sintex|reservoir)/.test(value)) return "tank";
   if (/\b(ac|air conditioner|electric|electrician|repair|appliance|plumber|carpenter)/.test(value)) return "ac";
   if (/\b(sofa|couch|chimney|fridge|refrigerator|pest|mattress|carpet)/.test(value)) return "sofa";
+  if (/\b(security|guard|facility|housekeeping|manpower)/.test(value)) return "security";
   return "deep";
 }
 

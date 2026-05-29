@@ -406,6 +406,16 @@ a {
   box-shadow: 0 4px 14px rgba(0,0,0,0.07);
 }
 
+.uc-svc-item.active {
+  background: white;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.09);
+}
+
+.uc-svc-item.active .uc-svc-icon-wrap {
+  border-color: var(--gold);
+  background: #fff8dd;
+}
+
 .uc-svc-icon-wrap {
   width: 60px;
   height: 60px;

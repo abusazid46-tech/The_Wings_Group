@@ -1,6 +1,6 @@
 import type { ServiceIconKey } from "./ServiceIcon";
 
-export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "deep";
+export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "deep" | "security";
 
 export type ServiceItem = {
   id: string | number;
@@ -18,7 +18,8 @@ export const categoryLabels: Record<ServiceCategoryId, string> = {
   tank: "Tank",
   ac: "AC & Electric",
   sofa: "Sofa & Appliances",
-  deep: "Deep Clean Package"
+  deep: "Deep Clean Package",
+  security: "Security"
 };
 
 export const services: ServiceItem[] = [
@@ -177,13 +178,13 @@ export const searchTerms = [
   "Kitchen Chimney Wash"
 ];
 
-export const quickServices = [
-  { label: "Toilet & Bath", iconKey: "bathroom", badge: "Same Day", query: "Toilet Cleaning", price: 399 },
-  { label: "Tank Wash", iconKey: "tank", badge: "Same Day", query: "Tank Wash", price: 499 },
-  { label: "AC & Repair", iconKey: "ac", badge: "22 mins", query: "AC Servicing", price: 499 },
-  { label: "Sofa Clean", iconKey: "sofa", query: "Sofa Cleaning", price: 599 },
-  { label: "Deep Clean", iconKey: "home", query: "Deep Home Cleaning 2BHK", price: 2299 },
-  { label: "Fridge Clean", iconKey: "appliance", query: "Fridge Cleaning", price: 99 },
-  { label: "Chimney Wash", iconKey: "kitchen", query: "Kitchen Chimney Wash", price: 499 },
-  { label: "Security", iconKey: "security", query: "Security", price: 0, scrollOnly: true }
+export const quickServices: Array<{ label: string; iconKey: ServiceIconKey; badge?: string; category: ServiceCategoryId }> = [
+  { label: "Toilet & Bath", iconKey: "bathroom", badge: "Same Day", category: "toilet" },
+  { label: "Tank Wash", iconKey: "tank", badge: "Same Day", category: "tank" },
+  { label: "AC & Repair", iconKey: "ac", badge: "22 mins", category: "ac" },
+  { label: "Sofa Clean", iconKey: "sofa", category: "sofa" },
+  { label: "Deep Clean", iconKey: "home", category: "deep" },
+  { label: "Fridge Clean", iconKey: "appliance", category: "sofa" },
+  { label: "Chimney Wash", iconKey: "kitchen", category: "sofa" },
+  { label: "Security", iconKey: "security", category: "security" }
 ];
