@@ -93,6 +93,7 @@ type ServiceForm = {
   slug: string;
   description: string;
   icon: string;
+  imageUrl: string;
   basePrice: string;
   durationMin: string;
   isActive: boolean;
@@ -295,6 +296,7 @@ const initialServiceForm: ServiceForm = {
   slug: "",
   description: "",
   icon: "cleaning",
+  imageUrl: "",
   basePrice: "",
   durationMin: "",
   isActive: true
@@ -601,6 +603,7 @@ export function AdminCrmDashboard() {
       slug: serviceForm.slug.trim() || slugify(serviceForm.name),
       description: serviceForm.description.trim() || `${serviceForm.name.trim()} service by The Wings Group.`,
       icon: normalizeServiceIconKey(serviceForm.icon),
+      imageUrl: serviceForm.imageUrl.trim() || undefined,
       basePrice,
       durationMin,
       isActive: serviceForm.isActive
@@ -665,6 +668,7 @@ export function AdminCrmDashboard() {
       slug: service.slug,
       description: service.description,
       icon,
+      imageUrl: service.imageUrl ?? "",
       basePrice: String(service.basePrice),
       durationMin: service.durationMin ? String(service.durationMin) : "",
       isActive: service.isActive
@@ -1624,6 +1628,10 @@ function ServiceFormView({
       <label>
         Duration Minutes
         <input value={form.durationMin} onChange={(event) => onChange("durationMin", event.target.value)} inputMode="numeric" placeholder="90" />
+      </label>
+      <label className="wide">
+        Service Image URL
+        <input value={form.imageUrl} onChange={(event) => onChange("imageUrl", event.target.value)} placeholder="https://example.com/service-photo.jpg" />
       </label>
       <div className="wide icon-picker-field">
         <span className="field-label">Service Icon</span>

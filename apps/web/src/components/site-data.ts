@@ -11,6 +11,13 @@ export type ServiceItem = {
   name: string;
   description: string;
   price: number;
+  priceLabel?: string;
+  originalPrice?: number;
+  originalPriceLabel?: string;
+  discountLabel?: string;
+  groupLabel?: string;
+  imageUrl?: string;
+  durationLabel?: string;
 };
 
 export const categoryLabels: Record<ServiceCategoryId, string> = {
@@ -195,4 +202,115 @@ export const quickServices: Array<{ label: string; iconKey: ServiceIconKey; badg
   { label: "Painter & Plumber", iconKey: "painting", category: "painter" },
   { label: "Saloon & Spa", iconKey: "salon", category: "salon" },
   { label: "Security", iconKey: "security", category: "security" }
+];
+
+export const toiletBathDetailServices: ServiceItem[] = [
+  {
+    id: "bath-combo-1",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Bathroom Cleaning",
+    name: "One attached toilet and bathroom cleaning",
+    description: "Complete cleaning for one attached toilet and bathroom.",
+    price: 699,
+    imageUrl: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "bath-combo-2",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Bathroom Cleaning",
+    name: "Two attached toilet and bathroom cleaning",
+    description: "Combo cleaning for two attached toilets and bathrooms.",
+    price: 1188.3,
+    priceLabel: "1188.3",
+    originalPrice: 1398,
+    discountLabel: "15% discount",
+    imageUrl: "https://images.unsplash.com/photo-1584622781564-1d987f7333c1?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "bath-combo-3",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Bathroom Cleaning",
+    name: "Three attached toilet and bathroom cleaning",
+    description: "Combo cleaning for three attached toilets and bathrooms.",
+    price: 1572.7,
+    priceLabel: "1572.7",
+    originalPrice: 2097,
+    discountLabel: "25% discount",
+    imageUrl: "https://images.unsplash.com/photo-1564540586988-aa4e53c3d799?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "toilet-1",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Toilet Cleaning",
+    name: "1 toilet cleaning",
+    description: "Deep sanitization of one toilet.",
+    price: 399,
+    imageUrl: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "toilet-2",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Toilet Cleaning",
+    name: "2 toilet cleaning",
+    description: "Deep sanitization of two toilets.",
+    price: 718.2,
+    priceLabel: "718.2",
+    originalPrice: 798,
+    discountLabel: "10%",
+    imageUrl: "https://images.unsplash.com/photo-1564540574859-0dfb63985953?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "toilet-3",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Toilet Cleaning",
+    name: "3 toilet cleaning",
+    description: "Deep sanitization of three toilets.",
+    price: 957.6,
+    priceLabel: "957.6",
+    originalPrice: 1197,
+    discountLabel: "20%",
+    imageUrl: "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "bathroom-1",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Bathroom Cleaning",
+    name: "1 bathroom cleaning",
+    description: "Tiles, floor, sink, mirror, and fixtures cleaning.",
+    price: 399,
+    imageUrl: "https://images.unsplash.com/photo-1584622781564-1d987f7333c1?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "bathroom-2",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Bathroom Cleaning",
+    name: "2 bathroom cleaning",
+    description: "Tiles, floor, sink, mirror, and fixtures cleaning for two bathrooms.",
+    price: 718.2,
+    priceLabel: "718.2",
+    originalPrice: 798,
+    discountLabel: "10%",
+    imageUrl: "https://images.unsplash.com/photo-1564540586988-aa4e53c3d799?w=500&q=85&fit=crop&crop=center"
+  },
+  {
+    id: "bathroom-3",
+    category: "toilet",
+    iconKey: "bathroom",
+    groupLabel: "Bathroom Cleaning",
+    name: "3 bathroom cleaning",
+    description: "Tiles, floor, sink, mirror, and fixtures cleaning for three bathrooms.",
+    price: 957.6,
+    priceLabel: "957.6",
+    originalPrice: 1197,
+    discountLabel: "20%",
+    imageUrl: "https://images.unsplash.com/photo-1584622781564-1d987f7333c1?w=500&q=85&fit=crop&crop=center"
+  }
 ];

@@ -14,7 +14,7 @@ import type {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
-import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
+import { categoryLabels, quickServices, searchTerms, services, toiletBathDetailServices, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
 type LocationChoice = { label: string; address: string; coords?: string };
@@ -121,6 +121,7 @@ const agartalaServiceRadiusKm = 25;
 export function CustomerHome() {
   const [placeholder, setPlaceholder] = useState("Search for 'Bathroom Cleaning'");
   const [locationModalOpen, setLocationModalOpen] = useState(false);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -318,9 +319,7 @@ export function CustomerHome() {
   function browseCategory(nextCategory: ServiceCategoryId) {
     setCategory(nextCategory);
     setSearchQuery("");
-    window.requestAnimationFrame(() => {
-      document.getElementById("services")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+    setCategoryModalOpen(true);
   }
 
   function bookOffer(offer: OfferBanner) {
@@ -677,6 +676,17 @@ export function CustomerHome() {
         <CheckoutBar cartCount={cartCount} total={total} onOpenCart={openCart} />
       )}
 
+      {categoryModalOpen && (
+        <CategoryServiceModal
+          category={category}
+          services={getCategoryDetailServices(category, serviceCatalog)}
+          cart={cart}
+          onClose={() => setCategoryModalOpen(false)}
+          onAdd={addService}
+          onOpenCart={openCart}
+        />
+      )}
+
       {locationModalOpen && (
         <LocationModal
           status={locationStatus}
@@ -1017,6 +1027,136 @@ function ServicesSection({
       </div>
     </section>
   );
+}
+
+function CategoryServiceModal({
+  category,
+  services: categoryServices,
+  cart,
+  onClose,
+  onAdd,
+  onOpenCart
+}: {
+  category: "all" | ServiceCategoryId;
+  services: ServiceItem[];
+  cart: Record<string, CartItem>;
+  onClose: () => void;
+  onAdd: (service: ServiceItem) => void;
+  onOpenCart: () => void;
+}) {
+  const title = category === "all" ? "All Services" : categoryLabels[category];
+  const groupedServices = groupCategoryServices(categoryServices);
+  const selectedCount = Object.values(cart).reduce((sum, item) => sum + item.quantity, 0);
+
+  return (
+    <div className="app-modal-backdrop category-detail-backdrop">
+      <div className="category-detail-modal">
+        <header className="category-detail-header">
+          <button className="category-back-btn" type="button" onClick={onClose} aria-label="Close service category">
+            <i className="bi bi-arrow-left" />
+          </button>
+          <div>
+            <span>The Wings Group</span>
+            <h2>{title}</h2>
+          </div>
+          <button className="category-cart-btn" type="button" onClick={onOpenCart}>
+            <i className="bi bi-cart3" />
+            {selectedCount > 0 && <strong>{selectedCount}</strong>}
+          </button>
+        </header>
+
+        <div className="category-detail-layout">
+          <aside className="category-side-card">
+            <div className="category-side-title">Select a service</div>
+            <div className="category-side-grid">
+              {quickServices.map((item) => (
+                <div className={`category-side-item ${item.category === category ? "active" : ""}`} key={item.label}>
+                  <ServiceIcon className="service-vector-icon category-side-icon" name={item.iconKey} title={item.label} />
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
+
+          <section className="category-service-list">
+            {groupedServices.map(([group, items]) => (
+              <div className="category-service-group" key={group}>
+                <h3>{group}</h3>
+                {items.map((service) => (
+                  <CategoryServiceRow
+                    key={service.id}
+                    service={service}
+                    added={Boolean(cart[String(service.id)])}
+                    onAdd={() => onAdd(service)}
+                  />
+                ))}
+              </div>
+            ))}
+          </section>
+
+          <aside className="category-promise-card">
+            <h3>TWG Promise</h3>
+            <p><i className="bi bi-check2" /> Verified Professionals</p>
+            <p><i className="bi bi-check2" /> Safe Chemicals</p>
+            <p><i className="bi bi-check2" /> Superior Stain Removal</p>
+            <div className="category-mini-cart">
+              <i className="bi bi-cart3" />
+              <span>{selectedCount > 0 ? `${selectedCount} item${selectedCount === 1 ? "" : "s"} in your cart` : "No items in your cart"}</span>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CategoryServiceRow({ service, added, onAdd }: { service: ServiceItem; added: boolean; onAdd: () => void }) {
+  return (
+    <article className="category-service-row">
+      <div className="category-service-copy">
+        <h4>{service.name}</h4>
+        <div className="category-rating">
+          <i className="bi bi-star-fill" />
+          <span>4.82</span>
+          <small>{service.durationLabel ?? "2 hrs"}</small>
+        </div>
+        <div className="category-price-line">
+          <strong>Rs. {service.priceLabel ?? formatMoney(service.price)}</strong>
+          {service.originalPrice != null && <del>Rs. {service.originalPriceLabel ?? formatMoney(service.originalPrice)}</del>}
+          {service.discountLabel && <span>{service.discountLabel}</span>}
+        </div>
+        <p>{service.description}</p>
+        <button className="category-details-btn" type="button">View details</button>
+      </div>
+      <div className="category-service-media">
+        {service.imageUrl ? (
+          <img src={service.imageUrl} alt={service.name} />
+        ) : (
+          <div className="category-service-image-fallback">
+            <ServiceIcon className="service-vector-icon" name={service.iconKey} title={service.name} />
+          </div>
+        )}
+        <button className={`category-add-btn ${added ? "added" : ""}`} type="button" onClick={onAdd}>
+          {added ? "Added" : "Add"}
+        </button>
+      </div>
+    </article>
+  );
+}
+
+function groupCategoryServices(items: ServiceItem[]) {
+  const groups = new Map<string, ServiceItem[]>();
+  for (const item of items) {
+    const key = item.groupLabel || item.categoryLabel || categoryLabels[item.category];
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  return Array.from(groups.entries());
+}
+
+function getCategoryDetailServices(category: "all" | ServiceCategoryId, catalog: ServiceItem[]) {
+  if (category === "toilet") return toiletBathDetailServices;
+  const selected = category === "all" ? catalog : catalog.filter((service) => service.category === category);
+  return selected.length > 0 ? selected : catalog.filter((service) => service.category === category);
 }
 
 function HowItWorks() {
@@ -1637,7 +1777,9 @@ function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string
     iconKey: resolveServiceIconKey(service.icon, searchableText, getCategoryIconKey(category)),
     name: service.name,
     description: service.description,
-    price: service.basePrice
+    price: service.basePrice,
+    imageUrl: service.imageUrl ?? undefined,
+    durationLabel: service.durationMin ? `${Math.round(service.durationMin / 60)} hrs` : undefined
   };
 }
 
@@ -1792,6 +1934,10 @@ function getTodayInputValue() {
   return new Date().toISOString().split("T")[0] ?? "";
 }
 
+function formatMoney(value: number) {
+  return Number.isInteger(value) ? value.toLocaleString("en-IN") : value.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+}
+
 function chooseOfferBanner(offers: OfferBanner[], cartItems: CartItem[]) {
   if (offers.length === 0) return null;
   const selectedServiceIds = new Set(cartItems.map((item) => item.serviceId).filter(Boolean));
@@ -1863,12 +2009,12 @@ function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: n
     preferredTimeSlot: form.time,
     notes: form.note || undefined,
     paymentMode: form.paymentMode,
-    totalAmount: total,
+    totalAmount: Math.round(total),
     items: cartItems.map((item) => ({
       serviceId: item.serviceId,
       serviceName: item.name,
       quantity: item.quantity,
-      unitPrice: item.price
+      unitPrice: Math.round(item.price)
     }))
   };
 }
