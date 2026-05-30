@@ -17,6 +17,7 @@ export type ServiceIconKey =
   | "carpenter"
   | "pest"
   | "painting"
+  | "salon"
   | "security";
 
 const iconKeys: ServiceIconKey[] = [
@@ -34,6 +35,7 @@ const iconKeys: ServiceIconKey[] = [
   "carpenter",
   "pest",
   "painting",
+  "salon",
   "security"
 ];
 
@@ -59,6 +61,9 @@ const aliases: Record<string, ServiceIconKey> = {
   house: "home",
   paint: "painting",
   waterproofing: "painting",
+  salon: "salon",
+  saloon: "salon",
+  spa: "salon",
   guard: "security",
   shield: "security"
 };
@@ -88,6 +93,7 @@ export function inferServiceIconKey(value: string, fallback: ServiceIconKey = "c
   if (/\b(carpenter|wood|door|furniture)/.test(text)) return "carpenter";
   if (/\b(pest|cockroach|ant|bug)/.test(text)) return "pest";
   if (/\b(paint|painting|waterproof)/.test(text)) return "painting";
+  if (/\b(salon|saloon|spa|massage|facial|beauty)/.test(text)) return "salon";
   if (/\b(security|guard|facility)/.test(text)) return "security";
   if (/\b(home|deep|room|bhk)/.test(text)) return "home";
   return normalizeServiceIconKey(value, fallback);
@@ -217,6 +223,15 @@ const icons: Record<ServiceIconKey, ReactNode> = {
       <path d="M4 5h11a3 3 0 0 1 0 6H8v3" />
       <rect x="6" y="14" width="4" height="7" rx="1" />
       <path d="M17 5v6" />
+    </>
+  ),
+  salon: (
+    <>
+      <circle cx="12" cy="8" r="3" />
+      <path d="M7 21a5 5 0 0 1 10 0" />
+      <path d="M5 5l3 3" />
+      <path d="M19 5l-3 3" />
+      <path d="M7 13c1.3 1 3 1.5 5 1.5s3.7-.5 5-1.5" />
     </>
   ),
   security: (

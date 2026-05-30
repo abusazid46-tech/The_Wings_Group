@@ -71,7 +71,11 @@ const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey:
   { id: "tank", label: "Tank", iconKey: "tank" },
   { id: "ac", label: "AC & Electric", iconKey: "ac" },
   { id: "sofa", label: "Sofa & Appliances", iconKey: "sofa" },
+  { id: "kitchen", label: "Kitchen & Appliances", iconKey: "kitchen" },
   { id: "deep", label: "Deep Clean", iconKey: "home" },
+  { id: "pest", label: "Pest Control", iconKey: "pest" },
+  { id: "painter", label: "Painter & Plumber", iconKey: "painting" },
+  { id: "salon", label: "Saloon & Spa", iconKey: "salon" },
   { id: "security", label: "Security", iconKey: "security" }
 ];
 
@@ -1639,8 +1643,12 @@ function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string
 function inferServiceCategory(value: string): ServiceCategoryId {
   if (/\b(toilet|bath|bathroom|washroom|sanit)/.test(value)) return "toilet";
   if (/\b(tank|water|sintex|reservoir)/.test(value)) return "tank";
-  if (/\b(ac|air conditioner|electric|electrician|repair|appliance|plumber|carpenter)/.test(value)) return "ac";
-  if (/\b(sofa|couch|chimney|fridge|refrigerator|pest|mattress|carpet)/.test(value)) return "sofa";
+  if (/\b(ac|air conditioner|electric|electrician|repair)/.test(value)) return "ac";
+  if (/\b(sofa|couch|mattress|carpet)/.test(value)) return "sofa";
+  if (/\b(kitchen|chimney|fridge|refrigerator|appliance)/.test(value)) return "kitchen";
+  if (/\b(pest|cockroach|ant|bug|termite)/.test(value)) return "pest";
+  if (/\b(painter|painting|paint|plumber|plumbing|carpenter|wall|waterproof)/.test(value)) return "painter";
+  if (/\b(salon|saloon|spa|massage|facial|beauty)/.test(value)) return "salon";
   if (/\b(security|guard|facility|housekeeping|manpower)/.test(value)) return "security";
   return "deep";
 }

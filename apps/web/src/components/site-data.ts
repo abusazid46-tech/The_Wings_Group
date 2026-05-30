@@ -1,6 +1,6 @@
 import type { ServiceIconKey } from "./ServiceIcon";
 
-export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "deep" | "security";
+export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "kitchen" | "deep" | "pest" | "painter" | "salon" | "security";
 
 export type ServiceItem = {
   id: string | number;
@@ -18,7 +18,11 @@ export const categoryLabels: Record<ServiceCategoryId, string> = {
   tank: "Tank",
   ac: "AC & Electric",
   sofa: "Sofa & Appliances",
+  kitchen: "Kitchen & Appliances",
   deep: "Deep Clean Package",
+  pest: "Pest Control",
+  painter: "Painter & Plumber",
+  salon: "Saloon & Spa",
   security: "Security"
 };
 
@@ -137,7 +141,7 @@ export const services: ServiceItem[] = [
   },
   {
     id: 15,
-    category: "sofa",
+    category: "kitchen",
     iconKey: "kitchen",
     name: "Kitchen Chimney Wash",
     description: "Complete degreasing and cleaning of kitchen chimneys, filters, mesh, and motor.",
@@ -145,7 +149,7 @@ export const services: ServiceItem[] = [
   },
   {
     id: 16,
-    category: "sofa",
+    category: "kitchen",
     iconKey: "appliance",
     name: "Fridge & Refrigerator Cleaning",
     description: "Interior and exterior cleaning of refrigerator including shelves, drawers, and seals.",
@@ -184,7 +188,10 @@ export const quickServices: Array<{ label: string; iconKey: ServiceIconKey; badg
   { label: "AC & Repair", iconKey: "ac", badge: "22 mins", category: "ac" },
   { label: "Sofa Clean", iconKey: "sofa", category: "sofa" },
   { label: "Deep Clean", iconKey: "home", category: "deep" },
-  { label: "Fridge Clean", iconKey: "appliance", category: "sofa" },
-  { label: "Chimney Wash", iconKey: "kitchen", category: "sofa" },
+  { label: "Kitchen & Appliances", iconKey: "kitchen", category: "kitchen" },
+  { label: "Chimney Wash", iconKey: "kitchen", category: "kitchen" },
+  { label: "Pest Control", iconKey: "pest", category: "pest" },
+  { label: "Painter & Plumber", iconKey: "painting", category: "painter" },
+  { label: "Saloon & Spa", iconKey: "salon", category: "salon" },
   { label: "Security", iconKey: "security", category: "security" }
 ];
