@@ -13,7 +13,7 @@ import type {
 } from "@the-wings/types";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { inferServiceIconKey, resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
+import { resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
@@ -308,29 +308,6 @@ export function CustomerHome() {
       city: serviceCity,
       date: current.date || getTodayInputValue()
     }));
-  }
-
-  function quickBook(query: string, fallbackPrice: number, scrollOnly?: boolean) {
-    if (scrollOnly) {
-      document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
-      return;
-    }
-
-    const service =
-      serviceCatalog.find((item) => item.name.toLowerCase().includes(query.toLowerCase().split(" ")[0] ?? query.toLowerCase())) ??
-      ({
-        id: `quick-${slugifyLabel(query)}`,
-        category: "deep",
-        iconKey: inferServiceIconKey(query, "cleaning"),
-        name: query,
-        description: "",
-        price: fallbackPrice
-      } satisfies ServiceItem);
-
-    setCart({ [String(service.id)]: { ...service, quantity: 1 } });
-    resetBookingState();
-    prepareBookingForm();
-    setBookingModalOpen(true);
   }
 
   function browseCategory(nextCategory: ServiceCategoryId) {
@@ -1670,14 +1647,6 @@ function inferServiceCategory(value: string): ServiceCategoryId {
 
 function getCategoryIconKey(category: ServiceCategoryId): ServiceIconKey {
   return categories.find((item) => item.id === category)?.iconKey ?? "cleaning";
-}
-
-function slugifyLabel(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
 }
 
 function _LegacyBookingModal({
