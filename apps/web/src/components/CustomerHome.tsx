@@ -76,6 +76,7 @@ const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey:
   { id: "pest", label: "Pest Control", iconKey: "pest" },
   { id: "painter", label: "Painter & Plumber", iconKey: "painting" },
   { id: "salon", label: "Saloon & Spa", iconKey: "salon" },
+  { id: "maid", label: "Aya and Housemaid", iconKey: "home" },
   { id: "security", label: "Security", iconKey: "security" }
 ];
 
@@ -1649,6 +1650,7 @@ function inferServiceCategory(value: string): ServiceCategoryId {
   if (/\b(pest|cockroach|ant|bug|termite)/.test(value)) return "pest";
   if (/\b(painter|painting|paint|plumber|plumbing|carpenter|wall|waterproof)/.test(value)) return "painter";
   if (/\b(salon|saloon|spa|massage|facial|beauty)/.test(value)) return "salon";
+  if (/\b(aya|maid|housemaid|nanny|caregiver|babysitter|domestic help)/.test(value)) return "maid";
   if (/\b(security|guard|facility|housekeeping|manpower)/.test(value)) return "security";
   return "deep";
 }

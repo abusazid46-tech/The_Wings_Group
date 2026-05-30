@@ -1,6 +1,6 @@
 import type { ServiceIconKey } from "./ServiceIcon";
 
-export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "kitchen" | "deep" | "pest" | "painter" | "salon" | "security";
+export type ServiceCategoryId = "toilet" | "tank" | "ac" | "sofa" | "kitchen" | "deep" | "pest" | "painter" | "salon" | "maid" | "security";
 
 export type ServiceItem = {
   id: string | number;
@@ -23,6 +23,7 @@ export const categoryLabels: Record<ServiceCategoryId, string> = {
   pest: "Pest Control",
   painter: "Painter & Plumber",
   salon: "Saloon & Spa",
+  maid: "Aya and Housemaid",
   security: "Security"
 };
 
@@ -179,7 +180,7 @@ export const searchTerms = [
   "AC Repairing",
   "Tank Cleaning",
   "Deep Home Cleaning",
-  "Kitchen Chimney Wash"
+  "Kitchen and Appliances"
 ];
 
 export const quickServices: Array<{ label: string; iconKey: ServiceIconKey; badge?: string; category: ServiceCategoryId }> = [
@@ -189,7 +190,7 @@ export const quickServices: Array<{ label: string; iconKey: ServiceIconKey; badg
   { label: "Sofa Clean", iconKey: "sofa", category: "sofa" },
   { label: "Deep Clean", iconKey: "home", category: "deep" },
   { label: "Kitchen & Appliances", iconKey: "kitchen", category: "kitchen" },
-  { label: "Chimney Wash", iconKey: "kitchen", category: "kitchen" },
+  { label: "Aya and Housemaid", iconKey: "home", category: "maid" },
   { label: "Pest Control", iconKey: "pest", category: "pest" },
   { label: "Painter & Plumber", iconKey: "painting", category: "painter" },
   { label: "Saloon & Spa", iconKey: "salon", category: "salon" },
