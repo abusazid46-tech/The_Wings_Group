@@ -14,7 +14,7 @@ import type {
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
-import { categoryLabels, quickServices, searchTerms, services, toiletBathDetailServices, type ServiceCategoryId, type ServiceItem } from "./site-data";
+import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
 type LocationChoice = { label: string; address: string; coords?: string };
@@ -1154,7 +1154,6 @@ function groupCategoryServices(items: ServiceItem[]) {
 }
 
 function getCategoryDetailServices(category: "all" | ServiceCategoryId, catalog: ServiceItem[]) {
-  if (category === "toilet") return toiletBathDetailServices;
   const selected = category === "all" ? catalog : catalog.filter((service) => service.category === category);
   return selected.length > 0 ? selected : catalog.filter((service) => service.category === category);
 }
@@ -1794,6 +1793,11 @@ function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string
     name: service.name,
     description: service.description,
     price: service.basePrice,
+    groupLabel: service.groupLabel ?? undefined,
+    priceLabel: service.priceLabel ?? undefined,
+    originalPrice: service.originalPrice ?? undefined,
+    originalPriceLabel: service.originalPriceLabel ?? undefined,
+    discountLabel: service.discountLabel ?? undefined,
     imageUrl: service.imageUrl ?? undefined,
     durationLabel: service.durationMin ? `${Math.round(service.durationMin / 60)} hrs` : undefined
   };

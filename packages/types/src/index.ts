@@ -32,6 +32,11 @@ export type Service = {
   icon?: string | null;
   imageUrl?: string | null;
   basePrice: number;
+  groupLabel?: string | null;
+  priceLabel?: string | null;
+  originalPrice?: number | null;
+  originalPriceLabel?: string | null;
+  discountLabel?: string | null;
   durationMin?: number | null;
   sortOrder: number;
   isActive: boolean;
@@ -202,6 +207,11 @@ export type ServiceCreateInput = {
   icon?: string;
   imageUrl?: string;
   basePrice: number;
+  groupLabel?: string | null;
+  priceLabel?: string | null;
+  originalPrice?: number | null;
+  originalPriceLabel?: string | null;
+  discountLabel?: string | null;
   durationMin?: number;
   sortOrder?: number;
   isActive?: boolean;

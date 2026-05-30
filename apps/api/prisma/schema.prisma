@@ -113,6 +113,11 @@ model Service {
   icon        String?
   imageUrl    String?
   basePrice   Int
+  groupLabel  String?
+  priceLabel  String?
+  originalPrice Int?
+  originalPriceLabel String?
+  discountLabel String?
   durationMin Int?
   sortOrder   Int             @default(0)
   isActive    Boolean         @default(true)

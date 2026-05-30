@@ -95,6 +95,11 @@ type ServiceForm = {
   icon: string;
   imageUrl: string;
   basePrice: string;
+  groupLabel: string;
+  priceLabel: string;
+  originalPrice: string;
+  originalPriceLabel: string;
+  discountLabel: string;
   durationMin: string;
   isActive: boolean;
 };
@@ -298,6 +303,11 @@ const initialServiceForm: ServiceForm = {
   icon: "cleaning",
   imageUrl: "",
   basePrice: "",
+  groupLabel: "",
+  priceLabel: "",
+  originalPrice: "",
+  originalPriceLabel: "",
+  discountLabel: "",
   durationMin: "",
   isActive: true
 };
@@ -596,7 +606,9 @@ export function AdminCrmDashboard() {
       ? serviceForm.categoryId
       : categories[0]?.id || fallbackCategories[0]?.id || "";
     const basePrice = parseAdminInteger(serviceForm.basePrice);
+    const originalPrice = serviceForm.originalPrice.trim() ? parseAdminInteger(serviceForm.originalPrice) : serviceForm.id ? null : undefined;
     const durationMin = serviceForm.durationMin.trim() === "" ? undefined : parseAdminInteger(serviceForm.durationMin);
+    const optionalText = (value: string) => value.trim() || (serviceForm.id ? null : undefined);
     const payload: ServiceCreateInput = {
       categoryId,
       name: serviceForm.name.trim(),
@@ -605,6 +617,11 @@ export function AdminCrmDashboard() {
       icon: normalizeServiceIconKey(serviceForm.icon),
       imageUrl: serviceForm.imageUrl.trim() || undefined,
       basePrice,
+      groupLabel: optionalText(serviceForm.groupLabel),
+      priceLabel: optionalText(serviceForm.priceLabel),
+      originalPrice,
+      originalPriceLabel: optionalText(serviceForm.originalPriceLabel),
+      discountLabel: optionalText(serviceForm.discountLabel),
       durationMin,
       isActive: serviceForm.isActive
     };
@@ -670,6 +687,11 @@ export function AdminCrmDashboard() {
       icon,
       imageUrl: service.imageUrl ?? "",
       basePrice: String(service.basePrice),
+      groupLabel: service.groupLabel ?? "",
+      priceLabel: service.priceLabel ?? "",
+      originalPrice: service.originalPrice != null ? String(service.originalPrice) : "",
+      originalPriceLabel: service.originalPriceLabel ?? "",
+      discountLabel: service.discountLabel ?? "",
       durationMin: service.durationMin ? String(service.durationMin) : "",
       isActive: service.isActive
     });
@@ -1626,6 +1648,26 @@ function ServiceFormView({
         <input value={form.basePrice} onChange={(event) => onChange("basePrice", event.target.value)} inputMode="numeric" placeholder="299" />
       </label>
       <label>
+        Popup Group Heading
+        <input value={form.groupLabel} onChange={(event) => onChange("groupLabel", event.target.value)} placeholder="Bathroom Cleaning" />
+      </label>
+      <label>
+        Display Price Label
+        <input value={form.priceLabel} onChange={(event) => onChange("priceLabel", event.target.value)} placeholder="1188.3" />
+      </label>
+      <label>
+        Old Price
+        <input value={form.originalPrice} onChange={(event) => onChange("originalPrice", event.target.value)} inputMode="numeric" placeholder="1398" />
+      </label>
+      <label>
+        Old Price Label
+        <input value={form.originalPriceLabel} onChange={(event) => onChange("originalPriceLabel", event.target.value)} placeholder="1398" />
+      </label>
+      <label>
+        Discount Label
+        <input value={form.discountLabel} onChange={(event) => onChange("discountLabel", event.target.value)} placeholder="15% discount" />
+      </label>
+      <label>
         Duration Minutes
         <input value={form.durationMin} onChange={(event) => onChange("durationMin", event.target.value)} inputMode="numeric" placeholder="90" />
       </label>
@@ -1695,6 +1737,13 @@ function ServiceTable({
             <div>
               <strong>{service.name}</strong>
               <span>{categoryMap.get(service.categoryId) ?? "Uncategorized"} - Rs. {service.basePrice.toLocaleString()}</span>
+              {(service.groupLabel || service.discountLabel || service.originalPrice != null) && (
+                <small>
+                  {[service.groupLabel, service.originalPrice != null ? `was Rs. ${service.originalPrice.toLocaleString()}` : "", service.discountLabel]
+                    .filter(Boolean)
+                    .join(" - ")}
+                </small>
+              )}
               <small>{service.description}</small>
             </div>
           </div>
@@ -1968,6 +2017,9 @@ function validateServicePayload(payload: ServiceCreateInput) {
   if (payload.slug.length < 2) return "Service slug must be at least 2 characters.";
   if (payload.description.length < 10) return "Service description must be at least 10 characters, or leave it blank to auto-generate one.";
   if (!Number.isInteger(payload.basePrice) || payload.basePrice < 0) return "Base price must be a whole number, zero or higher.";
+  if (payload.originalPrice !== undefined && payload.originalPrice !== null && (!Number.isInteger(payload.originalPrice) || payload.originalPrice < 0)) {
+    return "Old price must be a whole number, zero or higher.";
+  }
   if (payload.durationMin !== undefined && (!Number.isInteger(payload.durationMin) || payload.durationMin <= 0)) {
     return "Duration minutes must be a positive whole number.";
   }

@@ -143,6 +143,11 @@ function normalizeServiceBody(body: unknown, options: { defaultDescription: bool
   if (input.icon !== undefined) normalized.icon = normalizeText(input.icon);
   if (input.imageUrl !== undefined) normalized.imageUrl = normalizeText(input.imageUrl);
   if (input.basePrice !== undefined) normalized.basePrice = normalizeInteger(input.basePrice);
+  if (input.groupLabel !== undefined) normalized.groupLabel = normalizeNullableText(input.groupLabel);
+  if (input.priceLabel !== undefined) normalized.priceLabel = normalizeNullableText(input.priceLabel);
+  if (input.originalPrice !== undefined) normalized.originalPrice = normalizeNullableInteger(input.originalPrice);
+  if (input.originalPriceLabel !== undefined) normalized.originalPriceLabel = normalizeNullableText(input.originalPriceLabel);
+  if (input.discountLabel !== undefined) normalized.discountLabel = normalizeNullableText(input.discountLabel);
   if (input.durationMin !== undefined) normalized.durationMin = normalizeInteger(input.durationMin);
   if (input.sortOrder !== undefined) normalized.sortOrder = normalizeInteger(input.sortOrder);
   if (input.isActive !== undefined) normalized.isActive = normalizeBoolean(input.isActive);
@@ -161,6 +166,11 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() || undefined : undefined;
 }
 
+function normalizeNullableText(value: unknown) {
+  if (value === null) return null;
+  return normalizeText(value);
+}
+
 function normalizeInteger(value: unknown) {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value === "number") return value;
@@ -168,6 +178,11 @@ function normalizeInteger(value: unknown) {
 
   const numericText = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?/)?.[0];
   return numericText ? Number(numericText) : undefined;
+}
+
+function normalizeNullableInteger(value: unknown) {
+  if (value === null) return null;
+  return normalizeInteger(value);
 }
 
 function normalizeBoolean(value: unknown) {

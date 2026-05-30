@@ -13,6 +13,11 @@ export const serviceCreateSchema = z.object({
   icon: z.string().optional(),
   imageUrl: z.string().url().optional(),
   basePrice: z.number().int().nonnegative(),
+  groupLabel: z.string().trim().optional().nullable(),
+  priceLabel: z.string().trim().optional().nullable(),
+  originalPrice: z.number().int().nonnegative().optional().nullable(),
+  originalPriceLabel: z.string().trim().optional().nullable(),
+  discountLabel: z.string().trim().optional().nullable(),
   durationMin: z.number().int().positive().optional(),
   sortOrder: z.number().int().default(0),
   isActive: z.boolean().default(true)
