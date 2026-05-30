@@ -30,9 +30,9 @@ INSERT INTO "Service" (
   "durationMin", "sortOrder", "isActive", "createdAt", "updatedAt"
 )
 SELECT
-  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice",
-  data."groupLabel", data."priceLabel", data."originalPrice", data."originalPriceLabel", data."discountLabel",
-  data."durationMin", data."sortOrder", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice"::INTEGER,
+  data."groupLabel", data."priceLabel", data."originalPrice"::INTEGER, data."originalPriceLabel", data."discountLabel",
+  data."durationMin"::INTEGER, data."sortOrder"::INTEGER, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM selected_category
 CROSS JOIN (
   VALUES
@@ -93,9 +93,9 @@ INSERT INTO "Service" (
   "durationMin", "sortOrder", "isActive", "createdAt", "updatedAt"
 )
 SELECT
-  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice",
-  data."groupLabel", data."priceLabel", data."originalPrice", data."originalPriceLabel", data."discountLabel",
-  data."durationMin", data."sortOrder", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice"::INTEGER,
+  data."groupLabel", data."priceLabel", data."originalPrice"::INTEGER, data."originalPriceLabel", data."discountLabel",
+  data."durationMin"::INTEGER, data."sortOrder"::INTEGER, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM selected_category
 CROSS JOIN (
   VALUES
@@ -158,9 +158,9 @@ INSERT INTO "Service" (
   "durationMin", "sortOrder", "isActive", "createdAt", "updatedAt"
 )
 SELECT
-  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice",
-  data."groupLabel", data."priceLabel", data."originalPrice", data."originalPriceLabel", data."discountLabel",
-  data."durationMin", data."sortOrder", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice"::INTEGER,
+  data."groupLabel", data."priceLabel", data."originalPrice"::INTEGER, data."originalPriceLabel", data."discountLabel",
+  data."durationMin"::INTEGER, data."sortOrder"::INTEGER, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM selected_category
 CROSS JOIN (
   VALUES
@@ -218,9 +218,9 @@ INSERT INTO "Service" (
   "durationMin", "sortOrder", "isActive", "createdAt", "updatedAt"
 )
 SELECT
-  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice",
-  data."groupLabel", data."priceLabel", data."originalPrice", data."originalPriceLabel", data."discountLabel",
-  data."durationMin", data."sortOrder", true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  data."id", selected_category."id", data."name", data."slug", data."description", data."icon", data."imageUrl", data."basePrice"::INTEGER,
+  data."groupLabel", data."priceLabel", data."originalPrice"::INTEGER, data."originalPriceLabel", data."discountLabel",
+  data."durationMin"::INTEGER, data."sortOrder"::INTEGER, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 FROM selected_category
 CROSS JOIN (
   VALUES
