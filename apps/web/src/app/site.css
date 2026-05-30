@@ -746,14 +746,18 @@ a {
   align-items: stretch;
   padding: 0;
   background: rgba(255,255,255,0.96);
+  overflow: hidden;
 }
 
 .category-detail-modal {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   background: white;
   color: #111;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .category-detail-header {
@@ -811,6 +815,7 @@ a {
   grid-template-columns: minmax(220px, 330px) minmax(0, 640px) minmax(240px, 330px);
   gap: 40px;
   padding: 32px clamp(18px, 6vw, 160px) 70px;
+  min-height: calc(100vh - 86px);
 }
 
 .category-side-card,
@@ -1164,7 +1169,51 @@ footer {
 }
 
 .booking-modal-v2 {
-  width: min(860px, 100%);
+  width: min(980px, 100%);
+}
+
+.booking-modal-v2 .modal-body {
+  background: #f6f8fb;
+}
+
+.booking-form-shell {
+  display: grid;
+  gap: 16px;
+}
+
+.booking-form-shell .booking-auth-card,
+.booking-form-shell .booking-summary,
+.booking-form-shell > .row {
+  background: white;
+  border: 1px solid #e3ebf3;
+  box-shadow: 0 14px 36px rgba(18, 38, 63, 0.06);
+}
+
+.booking-form-shell .booking-summary {
+  margin-bottom: 0;
+}
+
+.booking-form-shell > .row {
+  border-radius: 16px;
+  margin: 0;
+  padding: 18px;
+}
+
+.booking-form-shell .form-label-custom {
+  color: #203047;
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.booking-form-shell .form-control-custom {
+  min-height: 48px;
+  border-color: #d9e4ee;
+  background: #fbfdff;
+}
+
+.booking-form-shell textarea.form-control-custom {
+  min-height: auto;
 }
 
 .modal-header-custom {

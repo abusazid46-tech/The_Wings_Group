@@ -527,7 +527,7 @@ export function CustomerHome() {
       setSubmitStatus("success");
       setSubmitMessage(
         payload.paymentMode === "RAZORPAY"
-          ? "Booking saved. Continue to secure Razorpay payment."
+          ? "Payment is required before this booking is confirmed. Continue to secure Razorpay payment."
           : "Booking saved. WhatsApp confirmation is queued for the operations team."
       );
       rememberBooking(createHistoryItem(booking, payload, "database"));
@@ -1563,9 +1563,27 @@ function BookingModal({
   const isPaying = paymentStatus === "creating" || paymentStatus === "verifying";
   const statusText = submitStatus === "offline" ? "WhatsApp pending" : bookingResult?.status ?? "Pending";
   const canPayOnline = bookingResult?.source === "database" && bookingResult.paymentMode === "RAZORPAY" && paymentStatus !== "paid";
+  const isOnlineBooking = bookingResult?.paymentMode === "RAZORPAY";
+  const isPaymentConfirmed = paymentStatus === "paid";
+  const successTitle =
+    bookingResult?.source !== "database"
+      ? "Booking Request Captured"
+      : isOnlineBooking
+        ? isPaymentConfirmed
+          ? "Payment Confirmed - Booking Confirmed"
+          : "Payment Required"
+        : "Booking Created";
+  const successCopy =
+    bookingResult?.source !== "database"
+      ? "Our team will call the customer shortly. This request is saved as a WhatsApp backup."
+      : isOnlineBooking
+        ? isPaymentConfirmed
+          ? "Your online payment has been verified and the booking is now confirmed."
+          : "Your booking request is saved as pending. It will be confirmed only after the online payment succeeds."
+        : "Your booking is created. Payment can be made after the service is completed.";
   const paymentOptions: Array<{ mode: PaymentMode; title: string; desc: string; icon: string }> = [
     { mode: "COD", title: "Pay after service", desc: "No advance payment required.", icon: "bi-cash-coin" },
-    { mode: "RAZORPAY", title: "Pay online", desc: "Use Razorpay after booking confirmation.", icon: "bi-credit-card-2-front" }
+    { mode: "RAZORPAY", title: "Pay online", desc: "Booking confirms only after payment succeeds.", icon: "bi-credit-card-2-front" }
   ];
 
   return (
@@ -1586,10 +1604,8 @@ function BookingModal({
               <div className={`booking-status-card ${submitStatus}`}>
                 <div className="success-icon"><i className="bi bi-check2-circle" /></div>
                 <span className="booking-source-chip">{bookingResult?.source === "database" ? "Saved to database" : "WhatsApp backup"}</span>
-                <h4>{bookingResult?.source === "database" ? "Booking Created" : "Booking Request Captured"}</h4>
-                <p>
-                  Our team will call the customer shortly. Payment can be completed online now or after service, based on the selected method.
-                </p>
+                <h4>{successTitle}</h4>
+                <p>{successCopy}</p>
                 {bookingResult && (
                   <div className="booking-code-box">
                     <span>Booking ID</span>
@@ -1616,7 +1632,7 @@ function BookingModal({
               <BookingHistory items={bookingHistory} />
             </div>
           ) : (
-            <form onSubmit={onSubmit}>
+            <form className="booking-form-shell" onSubmit={onSubmit}>
               <div className={`booking-auth-card ${authSession ? "signed-in" : ""}`}>
                 <div>
                   <strong>{authSession ? "Signed in for this booking" : "Sign in to continue"}</strong>
@@ -1731,7 +1747,7 @@ function BookingModal({
               </div>
               {submitMessage && <div className="booking-submit-note">{submitMessage}</div>}
               <button className="btn-confirm mt-4 w-100" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating booking..." : form.paymentMode === "RAZORPAY" ? "Confirm Booking - Continue to Payment" : "Confirm Booking - Pay on Delivery"}
+                {isSubmitting ? "Creating booking..." : form.paymentMode === "RAZORPAY" ? "Continue to Payment" : "Confirm Booking - Pay on Delivery"}
               </button>
               <BookingHistory items={bookingHistory} />
             </form>
