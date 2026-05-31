@@ -146,7 +146,7 @@ function normalizeServiceBody(body: unknown, options: { defaultDescription: bool
   const description = normalizeText(input.description) ?? "";
   const normalized: Record<string, unknown> = { ...input };
 
-  if (input.categoryId !== undefined || options.defaultDescription) normalized.categoryId = normalizeText(input.categoryId) || "cleaning";
+  if (input.categoryId !== undefined || options.defaultDescription) normalized.categoryId = normalizeText(input.categoryId) || "toilet-bath";
   if (input.name !== undefined || options.defaultDescription) normalized.name = name;
   if (input.slug !== undefined || options.defaultDescription) normalized.slug = slug;
   if (input.icon !== undefined) normalized.icon = normalizeText(input.icon);
