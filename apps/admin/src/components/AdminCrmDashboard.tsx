@@ -140,15 +140,23 @@ const bookingStatuses: BookingStatus[] = ["PENDING", "CONFIRMED", "ASSIGNED", "I
 const leadStatuses: LeadStatus[] = ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"];
 
 const fallbackCategories: ServiceCategory[] = [
-  { id: "cat-cleaning", name: "Cleaning", slug: "cleaning", sortOrder: 1, isActive: true },
-  { id: "cat-ac", name: "AC & Appliance", slug: "ac-appliance", sortOrder: 2, isActive: true },
-  { id: "cat-security", name: "Security", slug: "security", sortOrder: 3, isActive: true }
+  { id: "cat-toilet-bath", name: "Toilet & Bath", slug: "toilet-bath", sortOrder: 1, isActive: true },
+  { id: "cat-tank-wash", name: "Tank Wash", slug: "tank-wash", sortOrder: 2, isActive: true },
+  { id: "cat-ac-repair", name: "AC & Repair", slug: "ac-repair", sortOrder: 3, isActive: true },
+  { id: "cat-sofa-clean", name: "Sofa Clean", slug: "sofa-clean", sortOrder: 4, isActive: true },
+  { id: "cat-deep-clean", name: "Deep Clean", slug: "deep-clean", sortOrder: 5, isActive: true },
+  { id: "cat-kitchen-appliances", name: "Kitchen & Appliances", slug: "kitchen-appliances", sortOrder: 6, isActive: true },
+  { id: "cat-aya-housemaid", name: "Aya and Housemaid", slug: "aya-housemaid", sortOrder: 7, isActive: true },
+  { id: "cat-pest-control", name: "Pest Control", slug: "pest-control", sortOrder: 8, isActive: true },
+  { id: "cat-painter-plumber", name: "Painter & Plumber", slug: "painter-plumber", sortOrder: 9, isActive: true },
+  { id: "cat-saloon-spa", name: "Saloon & Spa", slug: "saloon-spa", sortOrder: 10, isActive: true },
+  { id: "cat-security", name: "Security", slug: "security", sortOrder: 11, isActive: true }
 ];
 
 const fallbackServices: Service[] = [
   {
     id: "svc-1",
-    categoryId: "cat-cleaning",
+    categoryId: "cat-toilet-bath",
     name: "Bathroom Deep Cleaning",
     slug: "bathroom-deep-cleaning",
     description: "Tiles, sink, toilet, mirror, fixtures, and floor sanitization.",
@@ -160,7 +168,7 @@ const fallbackServices: Service[] = [
   },
   {
     id: "svc-2",
-    categoryId: "cat-ac",
+    categoryId: "cat-ac-repair",
     name: "AC Regular Servicing",
     slug: "ac-regular-servicing",
     description: "Filter cleaning, coil wash, drainage check, and basic cooling inspection.",
@@ -172,7 +180,7 @@ const fallbackServices: Service[] = [
   },
   {
     id: "svc-3",
-    categoryId: "cat-cleaning",
+    categoryId: "cat-deep-clean",
     name: "Deep Home Cleaning - 2BHK",
     slug: "deep-home-cleaning-2bhk",
     description: "Full 2BHK home cleaning with bathrooms, kitchen, rooms, corridor, and fans.",

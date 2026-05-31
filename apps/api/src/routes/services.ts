@@ -7,9 +7,17 @@ import { isStaffRole, optionalAuth, requireRoles } from "../middleware/auth.js";
 export const servicesRouter = Router();
 
 const defaultCategories = [
-  { name: "Cleaning", slug: "cleaning", description: "Home, bathroom, sofa, kitchen, and deep cleaning services.", sortOrder: 1 },
-  { name: "AC & Appliance", slug: "ac-appliance", description: "AC servicing, appliance cleaning, and home electrical support.", sortOrder: 2 },
-  { name: "Security", slug: "security", description: "Security and facility management services.", sortOrder: 3 }
+  { name: "Toilet & Bath", slug: "toilet-bath", description: "Toilet, bathroom, and attached washroom cleaning packages.", sortOrder: 1 },
+  { name: "Tank Wash", slug: "tank-wash", description: "Overhead and underground water tank wash packages.", sortOrder: 2 },
+  { name: "AC & Repair", slug: "ac-repair", description: "AC servicing, repair, and electrical support.", sortOrder: 3 },
+  { name: "Sofa Clean", slug: "sofa-clean", description: "Sofa, couch, upholstery, and fabric cleaning.", sortOrder: 4 },
+  { name: "Deep Clean", slug: "deep-clean", description: "Complete home and room deep cleaning packages.", sortOrder: 5 },
+  { name: "Kitchen & Appliances", slug: "kitchen-appliances", description: "Kitchen, chimney, and appliance cleaning services.", sortOrder: 6 },
+  { name: "Aya and Housemaid", slug: "aya-housemaid", description: "Maid, aya, baby care, and patient care services.", sortOrder: 7 },
+  { name: "Pest Control", slug: "pest-control", description: "Pest control packages for homes and commercial spaces.", sortOrder: 8 },
+  { name: "Painter & Plumber", slug: "painter-plumber", description: "Painting, plumbing, carpenter, and repair services.", sortOrder: 9 },
+  { name: "Saloon & Spa", slug: "saloon-spa", description: "Salon, spa, beauty, and massage services.", sortOrder: 10 },
+  { name: "Security", slug: "security", description: "Security and facility management services.", sortOrder: 11 }
 ];
 
 async function ensureDefaultCategories() {
@@ -26,6 +34,7 @@ servicesRouter.get("/categories", async (_req, res, next) => {
   try {
     await ensureDefaultCategories();
     const categories = await prisma.serviceCategory.findMany({
+      where: { isActive: true },
       orderBy: { sortOrder: "asc" }
     });
     res.json({ data: categories });
