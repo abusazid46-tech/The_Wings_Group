@@ -1,14 +1,13 @@
 import "./globals.css";
 import "./site.css";
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "The Wings Group",
   description: "Home care, cleaning, AC servicing, security, and facility management services in Northeast India."
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default function RootLayout({ children }: { children?: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
