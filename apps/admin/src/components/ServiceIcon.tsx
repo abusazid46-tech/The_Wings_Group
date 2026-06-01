@@ -1,7 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
-
 export type ServiceIconKey =
   | "all"
   | "bathroom"
@@ -107,7 +105,7 @@ export function ServiceIcon({ name, className, title }: { name?: string | null; 
   );
 }
 
-const icons: Record<ServiceIconKey, ReactNode> = {
+const icons: Record<ServiceIconKey, React.ReactNode> = {
   all: (
     <>
       <rect x="4" y="4" width="6" height="6" rx="1.5" />
