@@ -249,6 +249,7 @@ export function CustomerHome() {
         !query ||
         service.name.toLowerCase().includes(query) ||
         service.description.toLowerCase().includes(query) ||
+        (service.groupLabel ?? "").toLowerCase().includes(query) ||
         (service.categoryLabel ?? categoryLabels[service.category]).toLowerCase().includes(query);
 
       return matchesCategory && matchesSearch;
@@ -320,6 +321,16 @@ export function CustomerHome() {
     setCategory(nextCategory);
     setSearchQuery("");
     setCategoryModalOpen(true);
+  }
+
+  function updateSearch(value: string) {
+    setSearchQuery(value);
+    if (value.trim()) setCategory("all");
+  }
+
+  function submitSearch() {
+    setCategory("all");
+    document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
   }
 
   function bookOffer(offer: OfferBanner) {
@@ -652,7 +663,8 @@ export function CustomerHome() {
         searchQuery={searchQuery}
         cartCount={cartCount}
         authSession={authSession}
-        onSearchChange={setSearchQuery}
+        onSearchChange={updateSearch}
+        onSearchSubmit={submitSearch}
         onOpenCart={openCart}
         onOpenLocation={() => setLocationModalOpen(true)}
         onOpenAuth={() => setAuthModalOpen(true)}
@@ -672,6 +684,7 @@ export function CustomerHome() {
       <AboutTeaser />
       <CodSection />
       <SiteFooter />
+      <MobileContactBar />
       {cartItems.length > 0 && !bookingModalOpen && (
         <CheckoutBar cartCount={cartCount} total={total} onOpenCart={openCart} />
       )}
@@ -693,15 +706,6 @@ export function CustomerHome() {
           onClose={() => setLocationModalOpen(false)}
           onUseCurrent={useCurrentLocation}
           onSelect={selectLocation}
-        />
-      )}
-
-      {authModalOpen && (
-        <AuthModal
-          initialPhone={form.phone}
-          initialName={form.name}
-          onClose={() => setAuthModalOpen(false)}
-          onSuccess={saveAuthSession}
         />
       )}
 
@@ -730,6 +734,15 @@ export function CustomerHome() {
           onClearCart={() => setCart({})}
         />
       )}
+
+      {authModalOpen && (
+        <AuthModal
+          initialPhone={form.phone}
+          initialName={form.name}
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={saveAuthSession}
+        />
+      )}
     </>
   );
 }
@@ -741,6 +754,7 @@ function Navbar({
   cartCount,
   authSession,
   onSearchChange,
+  onSearchSubmit,
   onOpenCart,
   onOpenLocation,
   onOpenAuth,
@@ -752,6 +766,7 @@ function Navbar({
   cartCount: number;
   authSession: AuthSession | null;
   onSearchChange: (value: string) => void;
+  onSearchSubmit: () => void;
   onOpenCart: () => void;
   onOpenLocation: () => void;
   onOpenAuth: () => void;
@@ -778,20 +793,29 @@ function Navbar({
             <i className="bi bi-chevron-down loc-caret" />
           </button>
 
-          <div className="uc-search-wrap">
-            <i className="bi bi-search" />
+          <form
+            className="uc-search-wrap"
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSearchSubmit();
+            }}
+          >
+            <button className="uc-search-submit" type="submit" aria-label="Search services">
+              <i className="bi bi-search" />
+            </button>
             <input
               type="text"
               className="uc-search-input"
               value={searchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
+                if (event.key === "Escape") onSearchChange("");
               }}
               placeholder={placeholder}
               aria-label="Search services"
             />
-          </div>
+          </form>
 
           <div className="uc-nav-links">
             <a className="uc-nav-link" href="#services">Services</a>
@@ -815,6 +839,25 @@ function Navbar({
           </div>
         </div>
       </div>
+    </nav>
+  );
+}
+
+function MobileContactBar() {
+  const phone = "7002107673";
+  const phoneWithCountry = "917002107673";
+
+  return (
+    <nav className="mobile-contact-bar" aria-label="Quick contact">
+      <a className="mobile-contact-action call" href={`tel:+${phoneWithCountry}`}>
+        <i className="bi bi-telephone-fill" />
+        <span>Call</span>
+      </a>
+      <a className="mobile-contact-action whatsapp" href={`https://wa.me/${phoneWithCountry}`} target="_blank" rel="noreferrer">
+        <i className="bi bi-whatsapp" />
+        <span>WhatsApp</span>
+      </a>
+      <span className="mobile-contact-number">{phone}</span>
     </nav>
   );
 }

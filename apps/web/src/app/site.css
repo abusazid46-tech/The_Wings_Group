@@ -132,16 +132,31 @@ a {
   max-width: 420px;
   position: relative;
   margin-right: 12px;
+  display: flex;
+  align-items: center;
 }
 
-.uc-search-wrap i {
+.uc-search-submit {
   position: absolute;
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background: transparent;
   color: #aaa;
   font-size: 1rem;
-  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 1;
+  cursor: pointer;
+}
+
+.uc-search-submit:hover {
+  color: var(--sky);
 }
 
 .uc-search-input {
@@ -161,6 +176,10 @@ a {
   border-color: var(--sky);
   box-shadow: 0 0 0 3px rgba(26,111,168,0.1);
   background: white;
+}
+
+.uc-search-wrap:focus-within .uc-search-submit {
+  color: var(--sky);
 }
 
 .uc-nav-links {
@@ -1684,6 +1703,10 @@ footer {
   font-weight: 900;
 }
 
+.mobile-contact-bar {
+  display: none;
+}
+
 .location-modal-card {
   width: min(520px, 100%);
   min-height: min(680px, 92vh);
@@ -2228,7 +2251,7 @@ footer {
   }
 
   .checkout-bar {
-    bottom: 10px;
+    bottom: 80px;
     width: calc(100% - 20px);
     border-radius: 14px;
   }
@@ -2237,5 +2260,50 @@ footer {
     flex-direction: column;
     gap: 1px;
     padding: 9px 12px;
+  }
+
+  .mobile-contact-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1350;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,0.96);
+    border-top: 1px solid #e6edf5;
+    box-shadow: 0 -12px 28px rgba(10,22,40,0.12);
+    backdrop-filter: blur(14px);
+  }
+
+  .mobile-contact-action {
+    min-height: 48px;
+    border-radius: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 900;
+    font-size: 0.92rem;
+    text-decoration: none;
+    color: white;
+  }
+
+  .mobile-contact-action.call {
+    background: var(--navy);
+  }
+
+  .mobile-contact-action.whatsapp {
+    background: #19a35b;
+  }
+
+  .mobile-contact-action i {
+    font-size: 1.05rem;
+  }
+
+  .mobile-contact-number {
+    display: none;
   }
 }
