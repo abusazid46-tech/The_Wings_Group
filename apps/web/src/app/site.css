@@ -837,6 +837,11 @@ a {
   min-height: calc(100vh - 86px);
 }
 
+.category-detail-layout.no-side-selector {
+  grid-template-columns: minmax(0, 760px) minmax(240px, 330px);
+  justify-content: center;
+}
+
 .category-side-card,
 .category-promise-card {
   align-self: start;
@@ -1215,7 +1220,24 @@ footer {
 .booking-form-shell > .row {
   border-radius: 16px;
   margin: 0;
-  padding: 18px;
+  padding: 20px;
+  row-gap: 16px;
+}
+
+.booking-form-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.booking-form-section-label::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: #e4edf5;
 }
 
 .booking-form-shell .form-label-custom {
@@ -1438,6 +1460,11 @@ footer {
   gap: 16px;
 }
 
+.auth-grid.google-only {
+  grid-template-columns: minmax(0, 420px);
+  justify-content: center;
+}
+
 .auth-panel {
   border: 1.5px solid #dce5ef;
   border-radius: 16px;
@@ -1458,6 +1485,12 @@ footer {
   color: var(--gray);
   font-size: 0.84rem;
   line-height: 1.5;
+}
+
+.google-auth-panel {
+  text-align: center;
+  justify-items: center;
+  background: white;
 }
 
 .auth-panel .col-md-6 {
@@ -1703,7 +1736,7 @@ footer {
   font-weight: 900;
 }
 
-.mobile-contact-bar {
+.floating-contact-actions {
   display: none;
 }
 
@@ -2196,25 +2229,9 @@ footer {
     padding: 18px 16px 90px;
   }
 
-  .category-side-card,
   .category-promise-card {
     position: static;
     margin-bottom: 18px;
-  }
-
-  .category-side-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-  }
-
-  .category-side-item {
-    font-size: 0.68rem;
-  }
-
-  .category-side-icon {
-    width: 48px;
-    height: 48px;
-    padding: 10px;
   }
 
   .category-service-row {
@@ -2251,8 +2268,11 @@ footer {
   }
 
   .checkout-bar {
-    bottom: 80px;
-    width: calc(100% - 20px);
+    bottom: 20px;
+    right: 84px;
+    left: 10px;
+    transform: none;
+    width: auto;
     border-radius: 14px;
   }
 
@@ -2262,33 +2282,25 @@ footer {
     padding: 9px 12px;
   }
 
-  .mobile-contact-bar {
+  .floating-contact-actions {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    right: 14px;
+    bottom: calc(18px + env(safe-area-inset-bottom));
     z-index: 1350;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: rgba(255,255,255,0.96);
-    border-top: 1px solid #e6edf5;
-    box-shadow: 0 -12px 28px rgba(10,22,40,0.12);
-    backdrop-filter: blur(14px);
+    gap: 10px;
   }
 
   .mobile-contact-action {
-    min-height: 48px;
-    border-radius: 12px;
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-weight: 900;
-    font-size: 0.92rem;
     text-decoration: none;
     color: white;
+    box-shadow: 0 14px 32px rgba(10,22,40,0.22);
   }
 
   .mobile-contact-action.call {
@@ -2300,7 +2312,11 @@ footer {
   }
 
   .mobile-contact-action i {
-    font-size: 1.05rem;
+    font-size: 1.35rem;
+  }
+
+  .mobile-contact-action span {
+    display: none;
   }
 
   .mobile-contact-number {

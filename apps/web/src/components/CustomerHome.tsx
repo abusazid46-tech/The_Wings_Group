@@ -83,6 +83,7 @@ const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey:
 const initialForm = {
   name: "",
   phone: "",
+  alternatePhone: "",
   address: "",
   city: "Agartala",
   date: "",
@@ -495,7 +496,7 @@ export function CustomerHome() {
     event.preventDefault();
 
     if (!authSession) {
-      setSubmitMessage("Sign in with OTP or Google to continue booking.");
+      setSubmitMessage("Sign in with Google to continue booking.");
       setAuthModalOpen(true);
       return;
     }
@@ -504,6 +505,7 @@ export function CustomerHome() {
       ...form,
       name: form.name.trim(),
       phone: form.phone.trim(),
+      alternatePhone: form.alternatePhone.trim(),
       address: form.address.trim(),
       city: form.city.trim() || "Agartala",
       date: form.date || getTodayInputValue(),
@@ -737,8 +739,6 @@ export function CustomerHome() {
 
       {authModalOpen && (
         <AuthModal
-          initialPhone={form.phone}
-          initialName={form.name}
           onClose={() => setAuthModalOpen(false)}
           onSuccess={saveAuthSession}
         />
@@ -848,7 +848,7 @@ function MobileContactBar() {
   const phoneWithCountry = "919774887803";
 
   return (
-    <nav className="mobile-contact-bar" aria-label="Quick contact">
+    <nav className="floating-contact-actions" aria-label="Quick contact">
       <a className="mobile-contact-action call" href={`tel:+${phoneWithCountry}`}>
         <i className="bi bi-telephone-fill" />
         <span>Call</span>
@@ -1108,19 +1108,7 @@ function CategoryServiceModal({
           </button>
         </header>
 
-        <div className="category-detail-layout">
-          <aside className="category-side-card">
-            <div className="category-side-title">Select a service</div>
-            <div className="category-side-grid">
-              {quickServices.map((item) => (
-                <div className={`category-side-item ${item.category === category ? "active" : ""}`} key={item.label}>
-                  <ServiceIcon className="service-vector-icon category-side-icon" name={item.iconKey} title={item.label} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
-          </aside>
-
+        <div className="category-detail-layout no-side-selector">
           <section className="category-service-list">
             {groupedServices.map(([group, items]) => (
               <div className="category-service-group" key={group}>
@@ -1390,22 +1378,14 @@ function LocationModal({
 }
 
 function AuthModal({
-  initialPhone,
-  initialName,
   onClose,
   onSuccess
 }: {
-  initialPhone: string;
-  initialName: string;
   onClose: () => void;
   onSuccess: (session: AuthSession) => void;
 }) {
-  const [phone, setPhone] = useState(initialPhone);
-  const [name, setName] = useState(initialName);
-  const [code, setCode] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("Enter your mobile number to receive a login OTP.");
+  const [status, setStatus] = useState("Use Google to continue securely.");
   const [error, setError] = useState("");
   const googleButtonRef = useRef<HTMLDivElement | null>(null);
   const googleRenderedRef = useRef(false);
@@ -1452,62 +1432,6 @@ function AuthModal({
     };
   }, [onSuccess]);
 
-  async function requestOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-
-    if (!/^[6-9]\d{9}$/.test(phone.trim())) {
-      setError("Enter a valid 10-digit Indian mobile number.");
-      return;
-    }
-
-    setBusy(true);
-    setStatus("Sending OTP...");
-    try {
-      const response = await createApiClient().requestOtp({
-        phone: phone.trim(),
-        name: name.trim() || undefined
-      });
-      setOtpSent(true);
-      setStatus(
-        response.data.debugOtp
-          ? `OTP ready for local testing: ${response.data.debugOtp}`
-          : response.data.message
-      );
-    } catch {
-      setError("Could not request OTP. Please check the API connection.");
-      setStatus("Enter your mobile number to receive a login OTP.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyOtp(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-
-    if (!/^\d{6}$/.test(code.trim())) {
-      setError("Enter the 6-digit OTP.");
-      return;
-    }
-
-    setBusy(true);
-    setStatus("Verifying OTP...");
-    try {
-      const response = await createApiClient().verifyOtp({
-        phone: phone.trim(),
-        code: code.trim(),
-        name: name.trim() || undefined
-      });
-      onSuccess(response.data);
-    } catch {
-      setError("Invalid or expired OTP.");
-      setStatus("Request a fresh OTP if the code has expired.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="app-modal-backdrop">
       <div className="app-modal auth-modal">
@@ -1515,38 +1439,22 @@ function AuthModal({
           <div>
             <h5 className="mb-1">Customer Login</h5>
             <div className="uc-cod-strip p-0" style={{ background: "transparent", color: "var(--gold-light)" }}>
-              <i className="bi bi-shield-lock" /> OTP or Google Sign-In
+              <i className="bi bi-shield-lock" /> Google Sign-In
             </div>
           </div>
           <button className="modal-close" type="button" onClick={onClose} aria-label="Close login">x</button>
         </div>
         <div className="modal-body">
-          <div className="auth-grid">
-            <form className="auth-panel" onSubmit={otpSent ? verifyOtp : requestOtp}>
-              <div>
-                <h6>Login with OTP</h6>
-                <p>{status}</p>
-              </div>
-              <Field label="Name" value={name} onChange={setName} placeholder="Customer name" />
-              <Field label="Mobile Number" value={phone} onChange={setPhone} placeholder="10-digit mobile number" type="tel" />
-              {otpSent && <Field label="OTP" value={code} onChange={setCode} placeholder="6-digit OTP" inputMode="numeric" />}
-              {error && <div className="auth-error">{error}</div>}
-              <button className="btn-confirm w-100" type="submit" disabled={busy}>
-                {busy ? "Please wait..." : otpSent ? "Verify OTP" : "Send OTP"}
-              </button>
-              {otpSent && (
-                <button className="auth-link-button" type="button" onClick={() => setOtpSent(false)} disabled={busy}>
-                  Change mobile number
-                </button>
-              )}
-            </form>
-            <div className="auth-panel">
+          <div className="auth-grid google-only">
+            <div className="auth-panel google-auth-panel">
               <div>
                 <h6>Continue with Google</h6>
-                <p>{googleClientId ? "Use a verified Google account." : "Add Google client ID env to enable this button."}</p>
+                <p>{googleClientId ? status : "Add Google client ID env to enable this button."}</p>
               </div>
               <div className="google-button-wrap" ref={googleButtonRef} />
               {!googleClientId && <div className="auth-error">Google login is not configured yet.</div>}
+              {busy && <div className="booking-submit-note">Verifying Google account...</div>}
+              {error && <div className="auth-error">{error}</div>}
             </div>
           </div>
         </div>
@@ -1681,7 +1589,7 @@ function BookingModal({
                   <span>
                     {authSession
                       ? authSession.user.name || authSession.user.phone || authSession.user.email || "Customer account ready"
-                      : "Use OTP or Google so booking history stays linked to the customer."}
+                      : "Use Google so booking history stays linked to the customer."}
                   </span>
                 </div>
                 {!authSession && (
@@ -1726,8 +1634,10 @@ function BookingModal({
                 {errors.cart && <div className="field-error">{errors.cart}</div>}
               </div>
               <div className="row g-3">
+                <div className="col-12 booking-form-section-label">Customer Details</div>
                 <Field label="Full Name *" value={form.name} onChange={(value) => onFormChange("name", value)} placeholder="Customer full name" error={errors.name} />
                 <Field label="Phone Number *" value={form.phone} onChange={(value) => onFormChange("phone", value)} placeholder="10-digit mobile number" type="tel" error={errors.phone} />
+                <Field label="Alternate Mobile No." value={form.alternatePhone} onChange={(value) => onFormChange("alternatePhone", value)} placeholder="Optional 10-digit number" type="tel" error={errors.alternatePhone} />
                 <div className="col-12">
                   <label className="form-label-custom">Address *</label>
                   <textarea
@@ -1739,6 +1649,7 @@ function BookingModal({
                   />
                   {errors.address && <div className="field-error">{errors.address}</div>}
                 </div>
+                <div className="col-12 booking-form-section-label">Schedule & Payment</div>
                 <Field label="City *" value={form.city} onChange={(value) => onFormChange("city", value)} placeholder="Agartala" error={errors.city} />
                 <Field label="Preferred Date *" value={form.date} onChange={(value) => onFormChange("date", value)} type="date" min={today} error={errors.date} />
                 <div className="col-md-6">
@@ -2050,6 +1961,7 @@ function validateBookingForm(form: BookingForm, cartItems: CartItem[]) {
 
   if (!form.name || form.name.length < 2) errors.name = "Enter the customer name.";
   if (!/^[6-9]\d{9}$/.test(form.phone)) errors.phone = "Enter a valid 10-digit Indian mobile number.";
+  if (form.alternatePhone && !/^[6-9]\d{9}$/.test(form.alternatePhone)) errors.alternatePhone = "Enter a valid alternate mobile number.";
   if (!form.address || form.address.length < 8) errors.address = "Enter the full address with landmark.";
   if (!form.city || form.city.length < 2) errors.city = "Enter the service city.";
   if (!hasAgartalaText(`${form.city} ${form.address}`)) errors.city = "We currently serve Agartala only.";
@@ -2062,6 +1974,11 @@ function validateBookingForm(form: BookingForm, cartItems: CartItem[]) {
 }
 
 function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: number, userId?: string): BookingCreateInput {
+  const notes = [
+    form.alternatePhone ? `Alternate mobile: ${form.alternatePhone}` : "",
+    form.note
+  ].filter(Boolean).join("\n");
+
   return {
     userId,
     customerName: form.name,
@@ -2070,7 +1987,7 @@ function createBookingPayload(form: BookingForm, cartItems: CartItem[], total: n
     city: form.city,
     preferredDate: form.date,
     preferredTimeSlot: form.time,
-    notes: form.note || undefined,
+    notes: notes || undefined,
     paymentMode: form.paymentMode,
     totalAmount: Math.round(total),
     items: cartItems.map((item) => ({
