@@ -844,8 +844,8 @@ function Navbar({
 }
 
 function MobileContactBar() {
-  const phone = "7002107673";
-  const phoneWithCountry = "917002107673";
+  const phone = "9774887803";
+  const phoneWithCountry = "919774887803";
 
   return (
     <nav className="mobile-contact-bar" aria-label="Quick contact">
