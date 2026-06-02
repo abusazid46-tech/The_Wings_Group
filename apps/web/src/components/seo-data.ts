@@ -1,4 +1,4 @@
-export const siteUrl = "https://the-wings-group1.vercel.app";
+export const siteUrl = "https://www.thewingsgroup.online";
 export const businessName = "The Wings Group";
 export const businessPhone = "+919774887803";
 export const whatsappUrl = "https://wa.me/919774887803";
