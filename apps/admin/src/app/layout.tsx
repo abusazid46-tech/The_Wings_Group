@@ -4,6 +4,10 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "The Wings Group Admin",
   description: "Admin CRM and booking operations dashboard for The Wings Group.",
+  robots: {
+    index: false,
+    follow: false
+  },
   icons: {
     icon: "/favicon.png",
     shortcut: "/favicon.png",

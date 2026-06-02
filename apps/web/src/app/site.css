@@ -593,17 +593,24 @@ a {
 .services-section,
 .how-section,
 .about-section,
-.mvv-section {
+.mvv-section,
+.local-seo-section,
+.faq-section,
+.seo-content-section,
+.seo-related-section {
   padding: 90px 0;
 }
 
 .services-section,
-.about-section {
+.about-section,
+.faq-section {
   background: white;
 }
 
 .how-section,
-.mvv-section {
+.mvv-section,
+.local-seo-section,
+.seo-content-section {
   background: var(--light-bg);
 }
 
@@ -1032,6 +1039,195 @@ a {
 .category-mini-cart i {
   font-size: 2rem;
   color: #bbb;
+}
+
+.local-seo-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+  gap: 34px;
+  align-items: start;
+}
+
+.local-seo-grid p {
+  color: var(--gray);
+  line-height: 1.8;
+  margin: 16px 0 0;
+}
+
+.service-area-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 22px;
+}
+
+.service-area-pills span {
+  background: white;
+  border: 1px solid #e2eaf2;
+  border-radius: 999px;
+  color: var(--navy);
+  font-size: 0.82rem;
+  font-weight: 750;
+  padding: 8px 12px;
+}
+
+.seo-link-panel,
+.seo-contact-card {
+  background: white;
+  border: 1px solid #e3eaf2;
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  padding: 24px;
+}
+
+.seo-link-panel h3,
+.seo-contact-card h2,
+.seo-related-section h2 {
+  color: var(--navy);
+  font-size: 1.1rem;
+  font-weight: 900;
+  margin-bottom: 16px;
+}
+
+.seo-link-panel a,
+.seo-contact-card a {
+  display: block;
+  color: var(--navy);
+  text-decoration: none;
+  border-top: 1px solid #edf1f6;
+  padding: 12px 0;
+  font-weight: 750;
+}
+
+.seo-link-panel a:hover,
+.seo-contact-card a:hover,
+.seo-related-grid a:hover {
+  color: var(--sky);
+}
+
+.faq-grid,
+.seo-related-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.faq-card {
+  border: 1px solid #e4ebf3;
+  border-radius: 12px;
+  padding: 22px;
+  background: #fff;
+}
+
+.faq-card h3 {
+  color: var(--navy);
+  font-size: 1rem;
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.faq-card p {
+  color: var(--gray);
+  line-height: 1.7;
+  margin: 0;
+}
+
+.seo-page {
+  background: white;
+  min-height: 100vh;
+}
+
+.seo-hero {
+  background: linear-gradient(135deg, var(--navy), #0d2245);
+  color: white;
+  padding: 52px 0 76px;
+}
+
+.seo-logo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: white;
+  text-decoration: none;
+  font-weight: 900;
+  margin-bottom: 48px;
+}
+
+.seo-logo-link img {
+  width: 58px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 9px;
+}
+
+.seo-hero h1 {
+  color: white;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 950;
+  line-height: 1.08;
+  max-width: 850px;
+}
+
+.seo-hero p {
+  color: rgba(255,255,255,0.72);
+  font-size: 1.05rem;
+  line-height: 1.8;
+  max-width: 780px;
+  margin: 18px 0 0;
+}
+
+.seo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.seo-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 34px;
+  align-items: start;
+}
+
+.seo-content-grid article {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e4ebf3;
+  padding: 30px;
+}
+
+.seo-content-grid h2,
+.seo-content-grid h3 {
+  color: var(--navy);
+  font-weight: 950;
+}
+
+.seo-content-grid p,
+.seo-content-grid li,
+.seo-contact-card p,
+.seo-related-grid span {
+  color: var(--gray);
+  line-height: 1.75;
+}
+
+.seo-related-grid a {
+  background: white;
+  border: 1px solid #e4ebf3;
+  border-radius: 12px;
+  color: var(--navy);
+  padding: 20px;
+  text-decoration: none;
+}
+
+.seo-related-grid strong,
+.seo-related-grid span {
+  display: block;
+}
+
+.seo-related-grid strong {
+  margin-bottom: 8px;
 }
 
 .step-item {
@@ -2263,6 +2459,17 @@ footer {
   .category-service-image-fallback {
     width: 112px;
     height: 98px;
+  }
+
+  .local-seo-grid,
+  .faq-grid,
+  .seo-content-grid,
+  .seo-related-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .seo-hero {
+    padding: 34px 0 54px;
   }
 
   .booking-item-row {

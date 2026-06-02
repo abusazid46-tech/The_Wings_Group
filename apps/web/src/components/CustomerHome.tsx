@@ -14,6 +14,7 @@ import type {
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
+import { faqItems, seoServices, serviceAreas } from "./seo-data";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
@@ -758,6 +759,8 @@ export function CustomerHome() {
         onAdd={addService}
         onClearSearch={() => setSearchQuery("")}
       />
+      <LocalSeoSection />
+      <FaqSection />
       <HowItWorks />
       <AboutTeaser />
       <CodSection />
@@ -1265,6 +1268,60 @@ function getCategoryDetailServices(category: "all" | ServiceCategoryId, catalog:
   return selected.length > 0 ? selected : catalog.filter((service) => service.category === category);
 }
 
+function LocalSeoSection() {
+  return (
+    <section className="local-seo-section" id="agartala-home-services">
+      <div className="container">
+        <div className="local-seo-grid">
+          <div>
+            <div className="section-label">Agartala Service Area</div>
+            <h2 className="section-title">Home Services in <span>Agartala, Tripura</span></h2>
+            <p>
+              The Wings Group provides professional home services across Agartala, including bathroom cleaning,
+              toilet cleaning, water tank wash, AC service, sofa cleaning, deep home cleaning, pest control,
+              maid support, painting, plumbing, salon enquiries, and security guard services.
+            </p>
+            <p>
+              Our booking system is built for local customers who need quick service confirmation, reliable staff,
+              clear pricing, and doorstep support in Agartala.
+            </p>
+            <div className="service-area-pills">
+              {serviceAreas.map((area) => <span key={area}>{area}</span>)}
+            </div>
+          </div>
+          <div className="seo-link-panel">
+            <h3>Popular Agartala services</h3>
+            {seoServices.map((service) => (
+              <Link href={`/services/${service.slug}/`} key={service.slug}>{service.title}</Link>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FaqSection() {
+  return (
+    <section className="faq-section" id="faq">
+      <div className="container">
+        <div className="text-center mb-5">
+          <div className="section-label">FAQs</div>
+          <h2 className="section-title">Questions About <span>Booking in Agartala</span></h2>
+        </div>
+        <div className="faq-grid">
+          {faqItems.map((item) => (
+            <article className="faq-card" key={item.question}>
+              <h3>{item.question}</h3>
+              <p>{item.answer}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function HowItWorks() {
   return (
     <section className="how-section" id="how">
@@ -1358,8 +1415,8 @@ export function SiteFooter() {
           </div>
           <div className="col-6 col-lg-2">
             <div className="footer-heading">Services</div>
-            {["Toilet & Bath Cleaning", "Tank Cleaning", "AC Servicing", "Sofa Cleaning", "Deep Home Cleaning", "Security Services"].map((link) => (
-              <a className="footer-link" href="#services" key={link}>{link}</a>
+            {seoServices.slice(0, 6).map((service) => (
+              <Link className="footer-link" href={`/services/${service.slug}/`} key={service.slug}>{service.name}</Link>
             ))}
           </div>
           <div className="col-6 col-lg-2">

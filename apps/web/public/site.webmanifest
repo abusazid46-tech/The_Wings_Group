@@ -1,0 +1,17 @@
+{
+  "name": "The Wings Group",
+  "short_name": "Wings Group",
+  "description": "Home services in Agartala for cleaning, AC repair, tank wash, sofa cleaning, pest control, maid, plumber, and security.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#071020",
+  "icons": [
+    {
+      "src": "/the-wings-logo.png",
+      "sizes": "357x227",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
