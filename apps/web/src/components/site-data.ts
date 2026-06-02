@@ -22,11 +22,11 @@ export type ServiceItem = {
 
 export const categoryLabels: Record<ServiceCategoryId, string> = {
   toilet: "Toilet & Bath",
-  tank: "Tank",
-  ac: "AC & Electric",
-  sofa: "Sofa & Appliances",
+  tank: "Tank Wash",
+  ac: "AC & Repair",
+  sofa: "Sofa Clean",
   kitchen: "Kitchen & Appliances",
-  deep: "Deep Clean Package",
+  deep: "Deep Clean",
   pest: "Pest Control",
   painter: "Painter & Plumber",
   salon: "Saloon & Spa",

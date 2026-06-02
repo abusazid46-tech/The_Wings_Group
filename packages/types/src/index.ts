@@ -26,6 +26,7 @@ export type ServiceCategory = {
 export type Service = {
   id: string;
   categoryId: string;
+  category?: ServiceCategory | null;
   name: string;
   slug: string;
   description: string;
@@ -40,6 +41,26 @@ export type Service = {
   durationMin?: number | null;
   sortOrder: number;
   isActive: boolean;
+};
+
+export type ServiceCatalogEventSnapshot = {
+  revision: string;
+  timestamp: string;
+  activeServices: number;
+  activeCategories: number;
+  latestService?: {
+    id: string;
+    name: string;
+    categoryId: string;
+    isActive: boolean;
+    updatedAt: string;
+  } | null;
+  latestCategory?: {
+    id: string;
+    name: string;
+    slug: string;
+    updatedAt: string;
+  } | null;
 };
 
 export type OfferBanner = {

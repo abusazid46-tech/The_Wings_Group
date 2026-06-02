@@ -12,7 +12,7 @@ import type {
   ServiceCategory as ApiServiceCategory
 } from "@the-wings/types";
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
@@ -68,9 +68,9 @@ declare global {
 const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey: ServiceIconKey }> = [
   { id: "all", label: "All Services", iconKey: "all" },
   { id: "toilet", label: "Toilet & Bath", iconKey: "bathroom" },
-  { id: "tank", label: "Tank", iconKey: "tank" },
-  { id: "ac", label: "AC & Electric", iconKey: "ac" },
-  { id: "sofa", label: "Sofa & Appliances", iconKey: "sofa" },
+  { id: "tank", label: "Tank Wash", iconKey: "tank" },
+  { id: "ac", label: "AC & Repair", iconKey: "ac" },
+  { id: "sofa", label: "Sofa Clean", iconKey: "sofa" },
   { id: "kitchen", label: "Kitchen & Appliances", iconKey: "kitchen" },
   { id: "deep", label: "Deep Clean", iconKey: "home" },
   { id: "pest", label: "Pest Control", iconKey: "pest" },
@@ -118,6 +118,52 @@ const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 const serviceCity = "Agartala";
 const agartalaCenter = { lat: 23.8315, lng: 91.2868 };
 const agartalaServiceRadiusKm = 25;
+const categorySlugMap: Record<string, ServiceCategoryId> = {
+  "toilet-bath": "toilet",
+  "toilet-and-bath": "toilet",
+  "toilet": "toilet",
+  "bath": "toilet",
+  "bathroom": "toilet",
+  "cat_toilet_bath": "toilet",
+  "tank-wash": "tank",
+  "tankwash": "tank",
+  "tank": "tank",
+  "cat_tank_wash": "tank",
+  "ac-repair": "ac",
+  "ac-and-repair": "ac",
+  "ac-and-electric": "ac",
+  "ac-electric": "ac",
+  "ac": "ac",
+  "cat_ac_repair": "ac",
+  "sofa-clean": "sofa",
+  "sofa": "sofa",
+  "cat_sofa_clean": "sofa",
+  "deep-clean": "deep",
+  "deep": "deep",
+  "cat_deep_clean": "deep",
+  "kitchen-appliances": "kitchen",
+  "kitchen-and-appliances": "kitchen",
+  "kitchen": "kitchen",
+  "cat_kitchen_appliances": "kitchen",
+  "aya-housemaid": "maid",
+  "aya-and-housemaid": "maid",
+  "maid": "maid",
+  "cat_aya_housemaid": "maid",
+  "pest-control": "pest",
+  "pest": "pest",
+  "cat_pest_control": "pest",
+  "painter-plumber": "painter",
+  "painter-and-plumber": "painter",
+  "painter": "painter",
+  "cat_painter_plumber": "painter",
+  "saloon-spa": "salon",
+  "saloon-and-spa": "salon",
+  "salon-spa": "salon",
+  "salon": "salon",
+  "cat_saloon_spa": "salon",
+  "security": "security",
+  "cat_security": "security"
+};
 
 export function CustomerHome() {
   const [placeholder, setPlaceholder] = useState("Search for 'Bathroom Cleaning'");
@@ -147,6 +193,7 @@ export function CustomerHome() {
   const [confirmedPayload, setConfirmedPayload] = useState<BookingCreateInput | null>(null);
   const [bookingHistory, setBookingHistory] = useState<BookingHistoryItem[]>([]);
   const [authSession, setAuthSession] = useState<AuthSession | null>(null);
+  const catalogRequestRef = useRef(0);
 
   useEffect(() => {
     let termIndex = 0;
@@ -188,39 +235,69 @@ export function CustomerHome() {
     }
   }, []);
 
+  const refreshServiceCatalog = useCallback(async () => {
+    const requestId = catalogRequestRef.current + 1;
+    catalogRequestRef.current = requestId;
+
+    try {
+      const api = createApiClient();
+      const [servicesResponse, offersResponse] = await Promise.all([
+        api.getServices(),
+        api.getActiveOfferBanners().catch(() => ({ data: [] as OfferBanner[] }))
+      ]);
+      if (catalogRequestRef.current !== requestId) return;
+
+      const needsCategoryFallback = servicesResponse.data.some((service) => !service.category);
+      const categoriesResponse = needsCategoryFallback
+        ? await api.getServiceCategories().catch(() => ({ data: [] as ApiServiceCategory[] }))
+        : { data: [] as ApiServiceCategory[] };
+      if (catalogRequestRef.current !== requestId) return;
+
+      const categoryMap = new Map(categoriesResponse.data.map((item) => [item.id, item]));
+      const mappedServices = servicesResponse.data
+        .filter((service) => service.isActive)
+        .map((service) => mapApiServiceToServiceItem(service, categoryMap));
+      setServiceCatalog(mappedServices);
+      setOfferBanners(offersResponse.data);
+    } catch {
+      if (catalogRequestRef.current !== requestId) return;
+      setServiceCatalog((current) => (current.length > 0 ? current : services));
+      setOfferBanners((current) => current);
+    }
+  }, []);
+
   useEffect(() => {
-    let mounted = true;
+    void refreshServiceCatalog();
+  }, [refreshServiceCatalog]);
 
-    async function loadServiceCatalog() {
-      try {
-        const api = createApiClient();
-        const [servicesResponse, categoriesResponse, offersResponse] = await Promise.all([
-          api.getServices(),
-          api.getServiceCategories().catch(() => ({ data: [] as ApiServiceCategory[] })),
-          api.getActiveOfferBanners().catch(() => ({ data: [] as OfferBanner[] }))
-        ]);
-        if (!mounted) return;
+  useEffect(() => {
+    const api = createApiClient();
+    const eventsUrl = api.getServiceCatalogEventsUrl();
+    let source: EventSource | null = null;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-        const categoryMap = new Map(categoriesResponse.data.map((item) => [item.id, item]));
-        const mappedServices = servicesResponse.data.filter((service) => service.isActive).map((service) => mapApiServiceToServiceItem(service, categoryMap));
-        if (mappedServices.length > 0) {
-          setServiceCatalog(mappedServices);
-        } else {
-          setServiceCatalog(services);
-        }
-        setOfferBanners(offersResponse.data);
-      } catch {
-        if (!mounted) return;
-        setServiceCatalog(services);
-        setOfferBanners([]);
-      }
+    function scheduleRefresh() {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        void refreshServiceCatalog();
+      }, 250);
     }
 
-    loadServiceCatalog();
+    if (typeof window !== "undefined" && "EventSource" in window) {
+      source = new EventSource(eventsUrl);
+      source.addEventListener("catalog:update", scheduleRefresh);
+    }
+
+    const pollTimer = setInterval(() => {
+      void refreshServiceCatalog();
+    }, 60000);
+
     return () => {
-      mounted = false;
+      if (refreshTimer) clearTimeout(refreshTimer);
+      clearInterval(pollTimer);
+      source?.close();
     };
-  }, []);
+  }, [refreshServiceCatalog]);
 
   useEffect(() => {
     let mounted = true;
@@ -245,7 +322,6 @@ export function CustomerHome() {
   const filteredServices = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return serviceCatalog.filter((service) => {
-      const matchesCategory = category === "all" || service.category === category;
       const matchesSearch =
         !query ||
         service.name.toLowerCase().includes(query) ||
@@ -253,9 +329,9 @@ export function CustomerHome() {
         (service.groupLabel ?? "").toLowerCase().includes(query) ||
         (service.categoryLabel ?? categoryLabels[service.category]).toLowerCase().includes(query);
 
-      return matchesCategory && matchesSearch;
+      return matchesSearch;
     });
-  }, [category, searchQuery, serviceCatalog]);
+  }, [searchQuery, serviceCatalog]);
 
   const cartItems = Object.values(cart);
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -1734,9 +1810,9 @@ function BookingHistory({ items }: { items: BookingHistoryItem[] }) {
 }
 
 function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string, ApiServiceCategory>): ServiceItem {
-  const apiCategory = categoryMap.get(service.categoryId);
+  const apiCategory = service.category ?? categoryMap.get(service.categoryId);
+  const category = resolveUiCategory(apiCategory, service.categoryId);
   const searchableText = [service.name, service.description, service.icon, apiCategory?.name, apiCategory?.slug].filter(Boolean).join(" ").toLowerCase();
-  const category = inferServiceCategory(searchableText);
 
   return {
     id: `api-${service.id}`,
@@ -1755,6 +1831,25 @@ function mapApiServiceToServiceItem(service: ApiService, categoryMap: Map<string
     imageUrl: service.imageUrl ?? undefined,
     durationLabel: service.durationMin ? `${Math.round(service.durationMin / 60)} hrs` : undefined
   };
+}
+
+function resolveUiCategory(apiCategory: ApiServiceCategory | null | undefined, categoryId: string): ServiceCategoryId {
+  const candidates = [apiCategory?.slug, apiCategory?.id, apiCategory?.name, categoryId];
+  for (const candidate of candidates) {
+    const normalized = normalizeCategoryKey(candidate);
+    if (normalized && categorySlugMap[normalized]) return categorySlugMap[normalized];
+  }
+
+  return inferServiceCategory(candidates.filter(Boolean).join(" ").toLowerCase());
+}
+
+function normalizeCategoryKey(value: string | null | undefined) {
+  return value
+    ?.trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9_]+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function inferServiceCategory(value: string): ServiceCategoryId {

@@ -144,6 +144,10 @@ export class ApiClient {
     return this.request<{ data: ServiceCategory[] }>("/services/categories");
   }
 
+  getServiceCatalogEventsUrl() {
+    return `${this.baseUrl}/services/events`;
+  }
+
   async createService(input: ServiceCreateInput) {
     return this.request<{ data: Service }>("/services", {
       method: "POST",

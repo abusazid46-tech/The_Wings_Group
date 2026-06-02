@@ -1,8 +1,10 @@
 import { Router, type NextFunction, type Response } from "express";
 import { Prisma } from "@prisma/client";
+import type { ServiceCatalogEventSnapshot } from "@the-wings/types";
 import { serviceCreateSchema, serviceUpdateSchema } from "@the-wings/validation";
 import { prisma } from "../db/prisma.js";
 import { isStaffRole, optionalAuth, requireRoles } from "../middleware/auth.js";
+import { logger } from "../services/logger.js";
 
 export const servicesRouter = Router();
 
@@ -43,6 +45,58 @@ servicesRouter.get("/categories", async (_req, res, next) => {
   }
 });
 
+servicesRouter.get("/events", async (req, res, next) => {
+  let initialSnapshot: ServiceCatalogEventSnapshot;
+
+  try {
+    await ensureDefaultCategories();
+    initialSnapshot = await loadServiceCatalogSnapshot();
+  } catch (error) {
+    return next(error);
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders?.();
+
+  let closed = false;
+  let previousRevision = initialSnapshot.revision;
+
+  function send(event: string, data: ServiceCatalogEventSnapshot | { ok: true; timestamp: string }) {
+    if (closed) return;
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  }
+
+  async function publish() {
+    const snapshot = await loadServiceCatalogSnapshot();
+    if (snapshot.revision !== previousRevision) {
+      previousRevision = snapshot.revision;
+      send("catalog:update", snapshot);
+      return;
+    }
+
+    send("heartbeat", { ok: true, timestamp: new Date().toISOString() });
+  }
+
+  send("connected", initialSnapshot);
+
+  const interval = setInterval(() => {
+    publish().catch((error: unknown) => {
+      send("catalog:error", { ok: true, timestamp: new Date().toISOString() });
+      logger.error("Service catalog event stream failed", { error });
+    });
+  }, 5000);
+
+  req.on("close", () => {
+    closed = true;
+    clearInterval(interval);
+    res.end();
+  });
+});
+
 servicesRouter.get("/", optionalAuth, async (req, res, next) => {
   try {
     const user = (req as typeof req & { authUser?: { role: "ADMIN" | "MANAGER" | "STAFF" | "CUSTOMER" } }).authUser;
@@ -53,6 +107,7 @@ servicesRouter.get("/", optionalAuth, async (req, res, next) => {
 
     const services = await prisma.service.findMany({
       where: req.query.includeInactive === "true" && canSeeInactive ? undefined : { isActive: true },
+      include: { category: true },
       orderBy: [{ category: { sortOrder: "asc" } }, { sortOrder: "asc" }]
     });
     res.json({ data: services });
@@ -226,4 +281,63 @@ async function resolveServiceCategoryId(categoryId: string) {
   if (fallbackCategory) return fallbackCategory.id;
 
   throw new Error("No service categories are available.");
+}
+
+async function loadServiceCatalogSnapshot(): Promise<ServiceCatalogEventSnapshot> {
+  const [activeServices, activeCategories, latestService, latestCategory] = await Promise.all([
+    prisma.service.count({ where: { isActive: true } }),
+    prisma.serviceCategory.count({ where: { isActive: true } }),
+    prisma.service.findFirst({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        categoryId: true,
+        isActive: true,
+        updatedAt: true
+      }
+    }),
+    prisma.serviceCategory.findFirst({
+      orderBy: { updatedAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        updatedAt: true
+      }
+    })
+  ]);
+
+  const revision = [
+    activeServices,
+    activeCategories,
+    latestService?.id ?? "no-service",
+    latestService?.updatedAt.toISOString() ?? "no-service-time",
+    latestCategory?.id ?? "no-category",
+    latestCategory?.updatedAt.toISOString() ?? "no-category-time"
+  ].join(":");
+
+  return {
+    revision,
+    timestamp: new Date().toISOString(),
+    activeServices,
+    activeCategories,
+    latestService: latestService
+      ? {
+          id: latestService.id,
+          name: latestService.name,
+          categoryId: latestService.categoryId,
+          isActive: latestService.isActive,
+          updatedAt: latestService.updatedAt.toISOString()
+        }
+      : null,
+    latestCategory: latestCategory
+      ? {
+          id: latestCategory.id,
+          name: latestCategory.name,
+          slug: latestCategory.slug,
+          updatedAt: latestCategory.updatedAt.toISOString()
+        }
+      : null
+  };
 }
