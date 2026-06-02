@@ -8,7 +8,7 @@ export function AboutContent() {
         <div className="container-fluid">
           <div className="navbar-inner">
             <Link className="brand-wrap" href="/">
-              <div className="brand-icon-uc">🪽</div>
+              <img className="brand-logo-img" src="/the-wings-logo.png" alt="The Wings Group logo" />
               <div>
                 <div className="brand-name-uc">Wings Group</div>
                 <div className="brand-sub-uc">Northeast India</div>

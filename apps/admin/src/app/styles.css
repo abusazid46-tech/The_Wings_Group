@@ -55,16 +55,14 @@ button {
   margin-bottom: 26px;
 }
 
-.brand span {
-  width: 40px;
-  height: 40px;
+.brand img {
+  width: 50px;
+  height: 38px;
   border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--gold);
-  color: var(--navy);
-  font-weight: 900;
+  display: block;
+  object-fit: cover;
+  background: white;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.16);
 }
 
 .brand strong {

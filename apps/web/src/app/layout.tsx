@@ -4,7 +4,12 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "The Wings Group",
-  description: "Home care, cleaning, AC servicing, security, and facility management services in Northeast India."
+  description: "Home care, cleaning, AC servicing, security, and facility management services in Northeast India.",
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/the-wings-logo.png"
+  }
 };
 
 export default function RootLayout({ children }: { children?: React.ReactNode }) {

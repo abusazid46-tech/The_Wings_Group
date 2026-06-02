@@ -65,6 +65,21 @@ a {
   font-size: 20px;
 }
 
+.brand-logo-img {
+  width: 48px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 9px;
+  display: block;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(11, 26, 51, 0.12);
+}
+
+.footer-logo-img {
+  width: 56px;
+  height: 42px;
+}
+
 .brand-name-uc {
   font-weight: 800;
   font-size: 0.95rem;
@@ -2101,6 +2116,11 @@ footer {
     height: 36px;
     border-radius: 9px;
     font-size: 18px;
+  }
+
+  .brand-logo-img {
+    width: 42px;
+    height: 32px;
   }
 
   .brand-name-uc {

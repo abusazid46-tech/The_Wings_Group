@@ -1103,7 +1103,7 @@ export function AdminCrmDashboard() {
     <main className="admin-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span>TWG</span>
+          <img src="/the-wings-logo.png" alt="The Wings Group logo" />
           <strong>The Wings Group</strong>
         </div>
         <nav>
@@ -1415,7 +1415,7 @@ function AdminLoginScreen({
     <main className="admin-login-shell">
       <section className="admin-login-panel">
         <div className="brand login-brand">
-          <span>TWG</span>
+          <img src="/the-wings-logo.png" alt="The Wings Group logo" />
           <strong>The Wings Group</strong>
         </div>
         <div className="eyebrow">Protected CRM</div>

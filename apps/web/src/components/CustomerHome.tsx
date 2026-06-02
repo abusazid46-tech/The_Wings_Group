@@ -853,7 +853,7 @@ function Navbar({
       <div className="container-fluid">
         <div className="navbar-inner">
           <Link className="brand-wrap" href="/">
-            <div className="brand-icon-uc">🪽</div>
+            <img className="brand-logo-img" src="/the-wings-logo.png" alt="The Wings Group logo" />
             <div>
               <div className="brand-name-uc">Wings Group</div>
               <div className="brand-sub-uc">Northeast India</div>
@@ -1348,7 +1348,7 @@ export function SiteFooter() {
         <div className="row gy-5">
           <div className="col-lg-4">
             <div className="d-flex align-items-center gap-3 mb-3">
-              <div className="brand-icon-uc">🪽</div>
+              <img className="brand-logo-img footer-logo-img" src="/the-wings-logo.png" alt="The Wings Group logo" />
               <div>
                 <div className="footer-brand-name">The Wings Group</div>
                 <div className="footer-tag">Home Care to Security — All Under One Wing</div>
