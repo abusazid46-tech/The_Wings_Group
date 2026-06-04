@@ -3,6 +3,10 @@
 import { ApiClientError, createApiClient } from "@the-wings/api-client";
 import type {
   AdminDashboard,
+  AdminReport,
+  AdminReportFilters,
+  AdminReportPeriod,
+  AdminReportRow,
   AuthSession,
   AuthUser,
   Booking,
@@ -13,6 +17,8 @@ import type {
   LeadStatus,
   OfferBanner,
   OfferBannerCreateInput,
+  PaymentMode,
+  PaymentStatus,
   Service,
   ServiceCategory,
   ServiceCreateInput
@@ -20,7 +26,7 @@ import type {
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeServiceIconKey, resolveServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
 
-type TabId = "dashboard" | "bookings" | "services" | "offers" | "customers" | "leads" | "whatsapp";
+type TabId = "dashboard" | "bookings" | "reports" | "services" | "offers" | "customers" | "leads" | "whatsapp";
 type DataMode = "loading" | "live" | "demo";
 type AuthMode = "checking" | "unauthenticated" | "forbidden" | "authenticated";
 type LiveStatus = "idle" | "connecting" | "connected" | "syncing" | "reconnecting" | "offline";
@@ -138,6 +144,22 @@ type OfferForm = {
 
 const bookingStatuses: BookingStatus[] = ["PENDING", "CONFIRMED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "REFUNDED"];
 const leadStatuses: LeadStatus[] = ["NEW", "CONTACTED", "QUALIFIED", "WON", "LOST"];
+const paymentStatuses: PaymentStatus[] = ["PENDING", "PAID", "FAILED", "REFUNDED"];
+const paymentModes: PaymentMode[] = ["COD", "RAZORPAY", "STRIPE"];
+const reportPeriods: Array<{ value: AdminReportPeriod; label: string }> = [
+  { value: "daily", label: "Daily" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+  { value: "yearly", label: "Yearly" },
+  { value: "custom", label: "Custom" }
+];
+const initialReportFilters: AdminReportFilters = {
+  period: "monthly",
+  status: "ALL",
+  paymentStatus: "ALL",
+  paymentMode: "ALL",
+  search: ""
+};
 
 const fallbackCategories: ServiceCategory[] = [
   { id: "toilet-bath", name: "Toilet & Bath", slug: "toilet-bath", sortOrder: 1, isActive: true },
@@ -364,6 +386,9 @@ export function AdminCrmDashboard() {
   const [leads, setLeads] = useState<Lead[]>(fallbackLeads);
   const [offers, setOffers] = useState<OfferBanner[]>([]);
   const [notes, setNotes] = useState<CrmNote[]>(fallbackNotes);
+  const [report, setReport] = useState<AdminReport | null>(null);
+  const [reportFilters, setReportFilters] = useState<AdminReportFilters>(initialReportFilters);
+  const [reportLoading, setReportLoading] = useState(false);
   const [serviceForm, setServiceForm] = useState<ServiceForm>(initialServiceForm);
   const [offerForm, setOfferForm] = useState<OfferForm>(initialOfferForm);
   const [leadForm, setLeadForm] = useState<LeadForm>(initialLeadForm);
@@ -430,6 +455,34 @@ export function AdminCrmDashboard() {
     }
   }, []);
 
+  const loadReportData = useCallback(async (filters = reportFilters) => {
+    setReportLoading(true);
+    try {
+      const response = await createApiClient().getAdminReport(filters);
+      setReport(response.data);
+      setMode("live");
+      setNotice("Report loaded from backend.");
+      adminConsole("info", "Admin report loaded", {
+        filters: response.data.filters,
+        rows: response.data.rows.length,
+        metrics: response.data.metrics
+      });
+    } catch (error) {
+      const fallbackReport = buildLocalReport(bookings, filters);
+      setReport(fallbackReport);
+      setMode("loading");
+      setNotice(`Report backend unavailable. Showing report from currently loaded bookings. ${getApiErrorMessage(error)}`);
+      pushActivity({
+        title: "Report loaded from local data",
+        detail: "Backend report endpoint was not reachable, so the report used loaded booking data.",
+        tone: "warning"
+      });
+      adminConsole("error", "Admin report load failed", error);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [bookings, pushActivity, reportFilters]);
+
   useEffect(() => {
     let mounted = true;
 
@@ -474,6 +527,11 @@ export function AdminCrmDashboard() {
       mounted = false;
     };
   }, [authMode, loadAdminData, pushActivity]);
+
+  useEffect(() => {
+    if (authMode !== "authenticated") return;
+    void loadReportData(initialReportFilters);
+  }, [authMode]);
 
   useEffect(() => {
     if (authMode !== "authenticated") return;
@@ -606,6 +664,38 @@ export function AdminCrmDashboard() {
 
   function setOfferField(field: keyof OfferForm, value: string | boolean) {
     setOfferForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function setReportFilter(field: keyof AdminReportFilters, value: string) {
+    setReportFilters((current) => {
+      const next = { ...current, [field]: value };
+      if (field === "period" && value !== "custom") {
+        next.dateFrom = "";
+        next.dateTo = "";
+      }
+      return next;
+    });
+  }
+
+  function applyReportFilters() {
+    void loadReportData(reportFilters);
+  }
+
+  function resetReportFilters() {
+    setReportFilters(initialReportFilters);
+    void loadReportData(initialReportFilters);
+  }
+
+  function exportReport(format: "csv" | "xls") {
+    if (!report) return;
+    const rows = buildReportExportRows(report.rows);
+    const filename = `the-wings-report-${report.filters.period}-${new Date().toISOString().slice(0, 10)}`;
+    if (format === "csv") {
+      downloadTextFile(`${filename}.csv`, toCsv(rows), "text/csv;charset=utf-8");
+      return;
+    }
+
+    downloadTextFile(`${filename}.xls`, toExcelTable(rows, "The Wings Group Report"), "application/vnd.ms-excel;charset=utf-8");
   }
 
   async function saveService(event: FormEvent<HTMLFormElement>) {
@@ -1110,6 +1200,7 @@ export function AdminCrmDashboard() {
           {[
             ["dashboard", "Dashboard"],
             ["bookings", "Bookings"],
+            ["reports", "Reports"],
             ["services", "Services"],
             ["offers", "Offers"],
             ["customers", "Customers"],
@@ -1176,6 +1267,21 @@ export function AdminCrmDashboard() {
           <section className="panel">
             <PanelHead title="Booking Operations" subtitle="Confirm, assign, complete, cancel, and message customers." />
             <BookingTable bookings={filteredBookings} onStatusChange={updateBookingStatus} onWhatsapp={sendWhatsapp} />
+          </section>
+        )}
+
+        {activeTab === "reports" && (
+          <section className="panel">
+            <PanelHead title="Reports" subtitle="Filter booking, payment, confirmed, cancelled, pending, and completed work by period." />
+            <ReportPanel
+              report={report}
+              filters={reportFilters}
+              loading={reportLoading}
+              onFilterChange={setReportFilter}
+              onApply={applyReportFilters}
+              onReset={resetReportFilters}
+              onExport={exportReport}
+            />
           </section>
         )}
 
@@ -1558,6 +1664,150 @@ function MetricGrid({ dashboard }: { dashboard: AdminDashboard }) {
         <div className="metric-card" key={label}>
           <span>{label}</span>
           <strong>{value}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportPanel({
+  report,
+  filters,
+  loading,
+  onFilterChange,
+  onApply,
+  onReset,
+  onExport
+}: {
+  report: AdminReport | null;
+  filters: AdminReportFilters;
+  loading: boolean;
+  onFilterChange: (field: keyof AdminReportFilters, value: string) => void;
+  onApply: () => void;
+  onReset: () => void;
+  onExport: (format: "csv" | "xls") => void;
+}) {
+  const rows = report?.rows ?? [];
+  const metrics = report?.metrics;
+
+  return (
+    <div className="report-shell">
+      <div className="report-filter-grid">
+        <label>
+          Period
+          <select value={filters.period ?? "monthly"} onChange={(event) => onFilterChange("period", event.target.value)}>
+            {reportPeriods.map((period) => <option value={period.value} key={period.value}>{period.label}</option>)}
+          </select>
+        </label>
+        <label>
+          From
+          <input
+            type="date"
+            value={filters.dateFrom ?? ""}
+            disabled={filters.period !== "custom"}
+            onChange={(event) => onFilterChange("dateFrom", event.target.value)}
+          />
+        </label>
+        <label>
+          To
+          <input
+            type="date"
+            value={filters.dateTo ?? ""}
+            disabled={filters.period !== "custom"}
+            onChange={(event) => onFilterChange("dateTo", event.target.value)}
+          />
+        </label>
+        <label>
+          Booking Status
+          <select value={filters.status ?? "ALL"} onChange={(event) => onFilterChange("status", event.target.value)}>
+            <option value="ALL">All bookings</option>
+            {bookingStatuses.map((status) => <option value={status} key={status}>{status}</option>)}
+          </select>
+        </label>
+        <label>
+          Payment Status
+          <select value={filters.paymentStatus ?? "ALL"} onChange={(event) => onFilterChange("paymentStatus", event.target.value)}>
+            <option value="ALL">All payments</option>
+            {paymentStatuses.map((status) => <option value={status} key={status}>{status}</option>)}
+          </select>
+        </label>
+        <label>
+          Payment Mode
+          <select value={filters.paymentMode ?? "ALL"} onChange={(event) => onFilterChange("paymentMode", event.target.value)}>
+            <option value="ALL">All modes</option>
+            {paymentModes.map((mode) => <option value={mode} key={mode}>{mode}</option>)}
+          </select>
+        </label>
+        <label className="report-search-field">
+          Search
+          <input value={filters.search ?? ""} onChange={(event) => onFilterChange("search", event.target.value)} placeholder="Booking, customer, phone, service..." />
+        </label>
+        <div className="report-actions">
+          <button type="button" onClick={onApply}>{loading ? "Loading..." : "Apply Filter"}</button>
+          <button type="button" onClick={onReset}>Reset</button>
+        </div>
+      </div>
+
+      {report && (
+        <div className="report-range-note">
+          <span>Showing {formatDate(report.filters.dateFrom)} to {formatDate(report.filters.dateTo)}</span>
+          <strong>{rows.length} row{rows.length === 1 ? "" : "s"}</strong>
+        </div>
+      )}
+
+      <div className="report-summary-grid">
+        {[
+          ["Bookings", metrics?.totalBookings ?? 0],
+          ["Confirmed", metrics?.confirmedBookings ?? 0],
+          ["Completed", metrics?.completedBookings ?? 0],
+          ["Cancelled", metrics?.cancelledBookings ?? 0],
+          ["Revenue", `Rs. ${(metrics?.totalRevenue ?? 0).toLocaleString()}`],
+          ["Paid", `Rs. ${(metrics?.paidAmount ?? 0).toLocaleString()}`],
+          ["Due", `Rs. ${(metrics?.dueAmount ?? 0).toLocaleString()}`],
+          ["COD / Online", `${metrics?.codBookings ?? 0} / ${metrics?.onlineBookings ?? 0}`]
+        ].map(([label, value]) => (
+          <div className="report-summary-card" key={label}>
+            <span>{label}</span>
+            <strong>{value}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="report-export-row">
+        <button type="button" disabled={!rows.length} onClick={() => onExport("csv")}>Export CSV</button>
+        <button type="button" disabled={!rows.length} onClick={() => onExport("xls")}>Export Excel</button>
+      </div>
+
+      <ReportTable rows={rows} />
+    </div>
+  );
+}
+
+function ReportTable({ rows }: { rows: AdminReportRow[] }) {
+  return (
+    <div className="data-table report-table">
+      <div className="table-head">
+        <span>Booking</span>
+        <span>Date</span>
+        <span>Customer</span>
+        <span>Services</span>
+        <span>Status</span>
+        <span>Payment</span>
+        <span>Total</span>
+        <span>Paid / Due</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="empty-activity">No report rows match the selected filters.</div>
+      ) : rows.map((row) => (
+        <div className="table-row" key={row.bookingCode}>
+          <strong>{row.bookingCode}</strong>
+          <span>{formatDate(row.createdAt)}<small>Service {formatDate(row.preferredDate)} - {row.preferredTimeSlot}</small></span>
+          <span>{row.customerName}<small>{row.customerPhone} - {row.city}</small></span>
+          <span>{row.services || "Service booking"}</span>
+          <span className={`status-pill ${row.bookingStatus.toLowerCase()}`}>{row.bookingStatus}</span>
+          <span className={`payment-pill ${row.paymentStatus.toLowerCase()}`}>{row.paymentMode} - {row.paymentStatus}</span>
+          <strong>Rs. {row.totalAmount.toLocaleString()}</strong>
+          <span>Rs. {row.paidAmount.toLocaleString()}<small>Due Rs. {row.dueAmount.toLocaleString()}</small></span>
         </div>
       ))}
     </div>
@@ -2170,6 +2420,177 @@ function adminConsole(level: "info" | "warn" | "error", message: string, data?: 
   }
 
   console.info(`[TWG Admin] ${message}`, payload);
+}
+
+function buildLocalReport(bookings: Booking[], filters: AdminReportFilters): AdminReport {
+  const range = getLocalReportDateRange(filters);
+  const search = (filters.search ?? "").trim().toLowerCase();
+  const status = filters.status ?? "ALL";
+  const paymentMode = filters.paymentMode ?? "ALL";
+  const paymentStatus = filters.paymentStatus ?? "ALL";
+
+  const rows = bookings
+    .filter((booking) => {
+      const createdAt = new Date(booking.createdAt);
+      if (createdAt < range.dateFrom || createdAt > range.dateTo) return false;
+      if (status !== "ALL" && booking.status !== status) return false;
+      if (paymentMode !== "ALL" && booking.paymentMode !== paymentMode) return false;
+      if (search) {
+        const haystack = [booking.bookingCode, booking.customerName, booking.customerPhone, booking.city, booking.status, booking.items.map((item) => item.serviceName).join(" ")]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(search)) return false;
+      }
+      return true;
+    })
+    .map((booking) => toReportRow(booking))
+    .filter((row) => paymentStatus === "ALL" || row.paymentStatus === paymentStatus);
+
+  const metrics = rows.reduce(
+    (summary, row) => {
+      summary.totalBookings += 1;
+      summary.totalRevenue += row.bookingStatus === "CANCELLED" || row.bookingStatus === "REFUNDED" ? 0 : row.totalAmount;
+      summary.paidAmount += row.paidAmount;
+      summary.dueAmount += row.dueAmount;
+      if (row.bookingStatus === "CONFIRMED" || row.bookingStatus === "ASSIGNED" || row.bookingStatus === "IN_PROGRESS") summary.confirmedBookings += 1;
+      if (row.bookingStatus === "CANCELLED" || row.bookingStatus === "REFUNDED") summary.cancelledBookings += 1;
+      if (row.bookingStatus === "COMPLETED") summary.completedBookings += 1;
+      if (row.bookingStatus === "PENDING") summary.pendingBookings += 1;
+      if (row.paymentMode === "COD") summary.codBookings += 1;
+      if (row.paymentMode !== "COD") summary.onlineBookings += 1;
+      return summary;
+    },
+    {
+      totalBookings: 0,
+      confirmedBookings: 0,
+      cancelledBookings: 0,
+      completedBookings: 0,
+      pendingBookings: 0,
+      totalRevenue: 0,
+      paidAmount: 0,
+      dueAmount: 0,
+      codBookings: 0,
+      onlineBookings: 0
+    }
+  );
+
+  return {
+    filters: {
+      period: filters.period ?? "monthly",
+      dateFrom: range.dateFrom.toISOString(),
+      dateTo: range.dateTo.toISOString(),
+      status,
+      paymentStatus,
+      paymentMode,
+      search: filters.search ?? ""
+    },
+    metrics,
+    rows
+  };
+}
+
+function toReportRow(booking: Booking): AdminReportRow {
+  const paidAmount = booking.payments?.filter((payment) => payment.status === "PAID").reduce((sum, payment) => sum + payment.amount, 0) ?? 0;
+  const latestPayment = booking.payments?.slice().sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+  const paymentStatus = paidAmount > 0 ? "PAID" : latestPayment?.status ?? "UNPAID";
+
+  return {
+    bookingCode: booking.bookingCode,
+    createdAt: booking.createdAt,
+    preferredDate: booking.preferredDate,
+    preferredTimeSlot: booking.preferredTimeSlot,
+    customerName: booking.customerName,
+    customerPhone: booking.customerPhone,
+    city: booking.city,
+    services: booking.items.map((item) => `${item.serviceName}${item.quantity > 1 ? ` x${item.quantity}` : ""}`).join(", "),
+    bookingStatus: booking.status,
+    paymentMode: booking.paymentMode,
+    paymentStatus,
+    totalAmount: booking.totalAmount,
+    paidAmount,
+    dueAmount: Math.max(booking.totalAmount - paidAmount, 0)
+  };
+}
+
+function getLocalReportDateRange(filters: AdminReportFilters) {
+  const now = new Date();
+  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+  const period = filters.period ?? "monthly";
+  if (period === "daily") return { dateFrom: new Date(now.getFullYear(), now.getMonth(), now.getDate()), dateTo: endOfToday };
+  if (period === "weekly") return { dateFrom: new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6), dateTo: endOfToday };
+  if (period === "yearly") return { dateFrom: new Date(now.getFullYear(), 0, 1), dateTo: endOfToday };
+  if (period === "custom") {
+    return {
+      dateFrom: parseLocalDate(filters.dateFrom, "start") ?? new Date(now.getFullYear(), now.getMonth(), 1),
+      dateTo: parseLocalDate(filters.dateTo, "end") ?? endOfToday
+    };
+  }
+  return { dateFrom: new Date(now.getFullYear(), now.getMonth(), 1), dateTo: endOfToday };
+}
+
+function parseLocalDate(value: string | undefined, boundary: "start" | "end") {
+  if (!value) return undefined;
+  const parsed = new Date(`${value}T${boundary === "start" ? "00:00:00.000" : "23:59:59.999"}`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function buildReportExportRows(rows: AdminReportRow[]) {
+  return rows.map((row) => ({
+    "Booking Code": row.bookingCode,
+    "Created At": formatDate(row.createdAt),
+    "Service Date": formatDate(row.preferredDate),
+    "Time Slot": row.preferredTimeSlot,
+    Customer: row.customerName,
+    Phone: row.customerPhone,
+    City: row.city,
+    Services: row.services,
+    "Booking Status": row.bookingStatus,
+    "Payment Mode": row.paymentMode,
+    "Payment Status": row.paymentStatus,
+    "Total Amount": row.totalAmount,
+    "Paid Amount": row.paidAmount,
+    "Due Amount": row.dueAmount
+  }));
+}
+
+function toCsv(rows: Array<Record<string, string | number>>) {
+  if (!rows.length) return "";
+  const headers = Object.keys(rows[0] ?? {});
+  return [headers.join(","), ...rows.map((row) => headers.map((header) => csvCell(row[header] ?? "")).join(","))].join("\r\n");
+}
+
+function csvCell(value: string | number) {
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function toExcelTable(rows: Array<Record<string, string | number>>, title: string) {
+  const headers = Object.keys(rows[0] ?? {});
+  return `<!doctype html><html><head><meta charset="utf-8" /></head><body><table><caption>${escapeHtml(title)}</caption><thead><tr>${headers
+    .map((header) => `<th>${escapeHtml(header)}</th>`)
+    .join("")}</tr></thead><tbody>${rows
+    .map((row) => `<tr>${headers.map((header) => `<td>${escapeHtml(row[header] ?? "")}</td>`).join("")}</tr>`)
+    .join("")}</tbody></table></body></html>`;
+}
+
+function escapeHtml(value: string | number) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function downloadTextFile(filename: string, content: string, mimeType: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function formatDate(value: string) {

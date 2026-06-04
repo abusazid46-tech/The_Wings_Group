@@ -347,3 +347,53 @@ export type AdminDashboard = {
   hotLeads: Lead[];
   customers: CustomerSummary[];
 };
+
+export type AdminReportPeriod = "daily" | "weekly" | "monthly" | "yearly" | "custom";
+
+export type AdminReportFilters = {
+  period?: AdminReportPeriod;
+  dateFrom?: string;
+  dateTo?: string;
+  status?: BookingStatus | "ALL";
+  paymentStatus?: PaymentStatus | "ALL";
+  paymentMode?: PaymentMode | "ALL";
+  search?: string;
+};
+
+export type AdminReportRow = {
+  bookingCode: string;
+  createdAt: string;
+  preferredDate: string;
+  preferredTimeSlot: string;
+  customerName: string;
+  customerPhone: string;
+  city: string;
+  services: string;
+  bookingStatus: BookingStatus;
+  paymentMode: PaymentMode;
+  paymentStatus: PaymentStatus | "UNPAID";
+  totalAmount: number;
+  paidAmount: number;
+  dueAmount: number;
+};
+
+export type AdminReport = {
+  filters: Required<Pick<AdminReportFilters, "period" | "status" | "paymentStatus" | "paymentMode">> & {
+    dateFrom: string;
+    dateTo: string;
+    search: string;
+  };
+  metrics: {
+    totalBookings: number;
+    confirmedBookings: number;
+    cancelledBookings: number;
+    completedBookings: number;
+    pendingBookings: number;
+    totalRevenue: number;
+    paidAmount: number;
+    dueAmount: number;
+    codBookings: number;
+    onlineBookings: number;
+  };
+  rows: AdminReportRow[];
+};

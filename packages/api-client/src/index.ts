@@ -1,5 +1,7 @@
 import type {
   AdminDashboard,
+  AdminReport,
+  AdminReportFilters,
   AuthSession,
   Booking,
   BookingCreateInput,
@@ -245,6 +247,19 @@ export class ApiClient {
 
   async getAdminDashboard() {
     return this.request<{ data: AdminDashboard }>("/admin/dashboard");
+  }
+
+  async getAdminReport(filters?: AdminReportFilters) {
+    const params = new URLSearchParams();
+    if (filters?.period) params.set("period", filters.period);
+    if (filters?.dateFrom) params.set("dateFrom", filters.dateFrom);
+    if (filters?.dateTo) params.set("dateTo", filters.dateTo);
+    if (filters?.status && filters.status !== "ALL") params.set("status", filters.status);
+    if (filters?.paymentStatus && filters.paymentStatus !== "ALL") params.set("paymentStatus", filters.paymentStatus);
+    if (filters?.paymentMode && filters.paymentMode !== "ALL") params.set("paymentMode", filters.paymentMode);
+    if (filters?.search) params.set("search", filters.search);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request<{ data: AdminReport }>(`/admin/reports${query}`);
   }
 
   getAdminEventsUrl() {
