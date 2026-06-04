@@ -221,6 +221,34 @@ h2 {
   font-weight: 850;
 }
 
+.alert-toggle {
+  border: 1px solid #d9e6d6;
+  background: #f3fbf4;
+  color: var(--green);
+  border-radius: 999px;
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.alert-toggle.enabled {
+  border-color: rgba(34, 169, 109, 0.28);
+  background: var(--green);
+  color: white;
+}
+
+.alert-toggle-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(34, 169, 109, 0.14);
+}
+
 .admin-login-shell {
   min-height: 100vh;
   display: grid;
@@ -314,6 +342,85 @@ h2 {
   color: var(--navy);
   white-space: nowrap;
   font-size: 0.78rem;
+}
+
+.alert-helper-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin: -5px 0 14px;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.alert-helper-row strong {
+  color: var(--navy);
+  white-space: nowrap;
+}
+
+.booking-alert-toast {
+  position: fixed;
+  right: 24px;
+  top: 24px;
+  z-index: 60;
+  width: min(430px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 30px;
+  gap: 12px;
+  align-items: start;
+  background: white;
+  border: 1px solid rgba(34, 169, 109, 0.22);
+  border-left: 5px solid var(--green);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 22px 60px rgba(10, 22, 40, 0.18);
+}
+
+.booking-alert-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #eef8f2;
+  display: grid;
+  place-items: center;
+}
+
+.booking-alert-icon span {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 8px rgba(34, 169, 109, 0.14);
+}
+
+.booking-alert-toast strong,
+.booking-alert-toast span,
+.booking-alert-toast small {
+  display: block;
+}
+
+.booking-alert-toast strong {
+  color: var(--navy);
+  font-size: 0.95rem;
+}
+
+.booking-alert-toast span,
+.booking-alert-toast small {
+  color: var(--muted);
+  line-height: 1.45;
+  margin-top: 3px;
+}
+
+.booking-alert-toast button {
+  border: 0;
+  background: #f4f7fb;
+  color: var(--muted);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .live-ops-bar {
@@ -1010,6 +1117,7 @@ textarea {
   .topbar,
   .toolbar,
   .notice-row,
+  .alert-helper-row,
   .live-ops-bar,
   .live-ops-primary,
   .live-ops-secondary {
@@ -1019,6 +1127,13 @@ textarea {
 
   .live-ops-bar {
     display: flex;
+  }
+
+  .booking-alert-toast {
+    top: 14px;
+    right: 14px;
+    left: 14px;
+    width: auto;
   }
 
   .topbar-actions,

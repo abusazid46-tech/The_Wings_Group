@@ -23,7 +23,7 @@ import type {
   ServiceCategory,
   ServiceCreateInput
 } from "@the-wings/types";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import { normalizeServiceIconKey, resolveServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
 
 type TabId = "dashboard" | "bookings" | "reports" | "services" | "offers" | "customers" | "leads" | "whatsapp";
@@ -37,6 +37,12 @@ type ActivityEvent = {
   detail: string;
   at: string;
   tone: ActivityTone;
+};
+type AlertToast = {
+  id: string;
+  title: string;
+  detail: string;
+  at: string;
 };
 type AdminEventSnapshot = {
   revision: string;
@@ -91,6 +97,7 @@ declare global {
 }
 
 const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
+const adminAlertsStorageKey = "twg_admin_alerts_enabled";
 
 type ServiceForm = {
   id: string;
@@ -378,6 +385,9 @@ export function AdminCrmDashboard() {
   const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [alertsEnabled, setAlertsEnabled] = useState(false);
+  const [alertToast, setAlertToast] = useState<AlertToast | null>(null);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const [dashboard, setDashboard] = useState<AdminDashboard>(fallbackDashboard);
   const [bookings, setBookings] = useState<Booking[]>(fallbackBookings);
   const [services, setServices] = useState<Service[]>(fallbackServices);
@@ -395,6 +405,9 @@ export function AdminCrmDashboard() {
   const [noteForm, setNoteForm] = useState<NoteForm>({ title: "", body: "" });
   const [query, setQuery] = useState("");
   const serviceEditorRef = useRef<HTMLElement | null>(null);
+  const alertAudioRef = useRef<AudioContext | null>(null);
+  const lastBookingCountRef = useRef<number | null>(null);
+  const alertToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pushActivity = useCallback((event: Omit<ActivityEvent, "id" | "at"> & { at?: string }) => {
     const entry: ActivityEvent = {
@@ -407,6 +420,86 @@ export function AdminCrmDashboard() {
 
     setActivityEvents((current) => [entry, ...current].slice(0, 12));
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setAlertsEnabled(window.localStorage.getItem(adminAlertsStorageKey) === "true");
+    setNotificationPermission("Notification" in window ? window.Notification.permission : "unsupported");
+
+    return () => {
+      if (alertToastTimerRef.current) clearTimeout(alertToastTimerRef.current);
+      alertAudioRef.current?.close().catch(() => undefined);
+    };
+  }, []);
+
+  async function enableAdminAlerts() {
+    const audio = await getAlertAudioContext(alertAudioRef);
+    playAdminRing(audio, 0.25);
+    window.localStorage.setItem(adminAlertsStorageKey, "true");
+    setAlertsEnabled(true);
+
+    if ("Notification" in window && window.Notification.permission === "default") {
+      const permission = await window.Notification.requestPermission();
+      setNotificationPermission(permission);
+    } else {
+      setNotificationPermission("Notification" in window ? window.Notification.permission : "unsupported");
+    }
+
+    setAlertToast({
+      id: `alerts-enabled-${Date.now()}`,
+      title: "Booking alerts enabled",
+      detail: "This admin browser will ring when a new booking arrives.",
+      at: new Date().toISOString()
+    });
+    scheduleAlertToastDismiss();
+  }
+
+  function disableAdminAlerts() {
+    window.localStorage.removeItem(adminAlertsStorageKey);
+    setAlertsEnabled(false);
+    setAlertToast({
+      id: `alerts-disabled-${Date.now()}`,
+      title: "Booking alerts muted",
+      detail: "New bookings will still appear in the live feed.",
+      at: new Date().toISOString()
+    });
+    scheduleAlertToastDismiss();
+  }
+
+  const scheduleAlertToastDismiss = useCallback(() => {
+    if (alertToastTimerRef.current) clearTimeout(alertToastTimerRef.current);
+    alertToastTimerRef.current = setTimeout(() => setAlertToast(null), 6500);
+  }, []);
+
+  const triggerNewBookingAlert = useCallback((snapshot: AdminEventSnapshot) => {
+    const booking = snapshot.latest.booking;
+    const title = "New booking received";
+    const detail = booking
+      ? `${booking.bookingCode} from ${booking.customerName} - Rs. ${booking.totalAmount.toLocaleString()}`
+      : "A new booking arrived in the admin CRM.";
+
+    setAlertToast({
+      id: `booking-alert-${snapshot.revision}`,
+      title,
+      detail,
+      at: snapshot.timestamp
+    });
+    scheduleAlertToastDismiss();
+    pushActivity({ title, detail, tone: "success", at: snapshot.timestamp });
+
+    if (!alertsEnabled) return;
+    void getAlertAudioContext(alertAudioRef).then((audio) => playAdminRing(audio, 1)).catch((error) => {
+      adminConsole("warn", "Admin alert sound could not play", error);
+    });
+
+    if (typeof window !== "undefined" && "Notification" in window && window.Notification.permission === "granted") {
+      new window.Notification(title, {
+        body: detail,
+        icon: "/the-wings-logo.png",
+        tag: booking?.bookingCode ?? snapshot.revision
+      });
+    }
+  }, [alertsEnabled, pushActivity, scheduleAlertToastDismiss]);
 
   const loadAdminData = useCallback(async (reason = "manual") => {
     try {
@@ -548,6 +641,7 @@ export function AdminCrmDashboard() {
       const snapshot = parseAdminEventSnapshot(event);
       if (!snapshot) return;
       currentRevision = snapshot.revision;
+      lastBookingCountRef.current = snapshot.metrics.bookingCount;
       reconnectNoticeShown = false;
       setLiveStatus("connected");
       setLastSyncedAt(snapshot.timestamp);
@@ -563,10 +657,15 @@ export function AdminCrmDashboard() {
     source.addEventListener("admin:update", (event) => {
       const snapshot = parseAdminEventSnapshot(event);
       if (!snapshot || snapshot.revision === currentRevision) return;
+      const previousBookingCount = lastBookingCountRef.current;
       currentRevision = snapshot.revision;
+      lastBookingCountRef.current = snapshot.metrics.bookingCount;
       reconnectNoticeShown = false;
       setLiveStatus("syncing");
       setLastSyncedAt(snapshot.timestamp);
+      if (previousBookingCount !== null && snapshot.metrics.bookingCount > previousBookingCount) {
+        triggerNewBookingAlert(snapshot);
+      }
       pushActivity({
         title: "Live CRM update received",
         detail: summarizeAdminSnapshot(snapshot),
@@ -614,7 +713,7 @@ export function AdminCrmDashboard() {
       setLiveStatus("offline");
       adminConsole("info", "Admin event stream closed");
     };
-  }, [authMode, loadAdminData, pushActivity]);
+  }, [authMode, loadAdminData, pushActivity, triggerNewBookingAlert]);
 
   const filteredBookings = useMemo(() => {
     const value = query.trim().toLowerCase();
@@ -1221,6 +1320,10 @@ export function AdminCrmDashboard() {
             <h1>Admin panel for bookings, services, customers, and leads.</h1>
           </div>
           <div className="topbar-actions">
+            <button className={`alert-toggle ${alertsEnabled ? "enabled" : ""}`} type="button" onClick={alertsEnabled ? disableAdminAlerts : enableAdminAlerts}>
+              <span className="alert-toggle-dot" />
+              {alertsEnabled ? "Alerts On" : "Enable Alerts"}
+            </button>
             <div className={`live-pill ${liveStatus}`}>
               <span />
               {getLiveStatusLabel(liveStatus)}
@@ -1236,6 +1339,25 @@ export function AdminCrmDashboard() {
           <span>{notice}</span>
           {lastSyncedAt && <strong>Last sync {formatRelativeTime(lastSyncedAt)}</strong>}
         </div>
+
+        <div className="alert-helper-row">
+          <span>{alertsEnabled ? "Sound alerts are active for new bookings in this browser." : "Click Enable Alerts once after login to allow booking ring notifications."}</span>
+          <strong>Browser notifications: {formatNotificationPermission(notificationPermission)}</strong>
+        </div>
+
+        {alertToast && (
+          <div className="booking-alert-toast" role="status" aria-live="polite">
+            <div className="booking-alert-icon">
+              <span />
+            </div>
+            <div>
+              <strong>{alertToast.title}</strong>
+              <span>{alertToast.detail}</span>
+              <small>{formatRelativeTime(alertToast.at)}</small>
+            </div>
+            <button type="button" onClick={() => setAlertToast(null)} aria-label="Dismiss booking alert">×</button>
+          </div>
+        )}
 
         <div className="toolbar">
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search bookings, customers, leads..." />
@@ -2404,6 +2526,50 @@ function formatRelativeTime(value: string) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(date);
+}
+
+async function getAlertAudioContext(ref: MutableRefObject<AudioContext | null>) {
+  if (!ref.current) {
+    ref.current = new AudioContext();
+  }
+
+  if (ref.current.state === "suspended") {
+    await ref.current.resume();
+  }
+
+  return ref.current;
+}
+
+function playAdminRing(audio: AudioContext, volume = 1) {
+  const now = audio.currentTime;
+  const notes = [
+    { start: 0, frequency: 880 },
+    { start: 0.18, frequency: 1174 },
+    { start: 0.36, frequency: 880 },
+    { start: 0.72, frequency: 1174 },
+    { start: 0.9, frequency: 880 }
+  ];
+
+  for (const note of notes) {
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(note.frequency, now + note.start);
+    gain.gain.setValueAtTime(0, now + note.start);
+    gain.gain.linearRampToValueAtTime(0.18 * volume, now + note.start + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + note.start + 0.16);
+    oscillator.connect(gain);
+    gain.connect(audio.destination);
+    oscillator.start(now + note.start);
+    oscillator.stop(now + note.start + 0.18);
+  }
+}
+
+function formatNotificationPermission(permission: NotificationPermission | "unsupported") {
+  if (permission === "granted") return "allowed";
+  if (permission === "denied") return "blocked";
+  if (permission === "default") return "not requested";
+  return "not supported";
 }
 
 function adminConsole(level: "info" | "warn" | "error", message: string, data?: unknown) {
