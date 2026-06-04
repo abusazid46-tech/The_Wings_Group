@@ -18,6 +18,8 @@ export type ServiceItem = {
   groupLabel?: string;
   imageUrl?: string;
   durationLabel?: string;
+  bookingCount?: number;
+  bookedQuantity?: number;
 };
 
 export const categoryLabels: Record<ServiceCategoryId, string> = {

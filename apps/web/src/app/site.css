@@ -631,6 +631,13 @@ a {
   line-height: 1.2;
 }
 
+.section-support-text {
+  color: var(--gray);
+  font-size: 0.92rem;
+  margin: 12px auto 0;
+  max-width: 520px;
+}
+
 .category-tab {
   display: inline-flex;
   align-items: center;
@@ -701,6 +708,18 @@ a {
   border-radius: 20px;
   padding: 3px 10px;
   text-transform: uppercase;
+}
+
+.popular-rank-badge {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: rgba(7, 16, 32, 0.86);
+  color: white;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 6px 10px;
 }
 
 .card-body-custom {

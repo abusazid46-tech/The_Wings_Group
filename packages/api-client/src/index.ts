@@ -140,6 +140,13 @@ export class ApiClient {
     return this.request<{ data: Service[] }>(`/services${query}`);
   }
 
+  async getPopularServices(options?: { limit?: number }) {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set("limit", String(options.limit));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request<{ data: Service[] }>(`/services/popular${query}`);
+  }
+
   async getServiceCategories() {
     return this.request<{ data: ServiceCategory[] }>("/services/categories");
   }

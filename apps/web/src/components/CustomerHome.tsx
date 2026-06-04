@@ -182,6 +182,7 @@ export function CustomerHome() {
   const [category, setCategory] = useState<"all" | ServiceCategoryId>("all");
   const [cart, setCart] = useState<Record<string, CartItem>>({});
   const [serviceCatalog, setServiceCatalog] = useState<ServiceItem[]>(services);
+  const [popularServiceCatalog, setPopularServiceCatalog] = useState<ServiceItem[]>(services.slice(0, 5));
   const [offerBanners, setOfferBanners] = useState<OfferBanner[]>([]);
   const [form, setForm] = useState(initialForm);
   const [formErrors, setFormErrors] = useState<BookingFormErrors>({});
@@ -242,13 +243,14 @@ export function CustomerHome() {
 
     try {
       const api = createApiClient();
-      const [servicesResponse, offersResponse] = await Promise.all([
+      const [servicesResponse, popularServicesResponse, offersResponse] = await Promise.all([
         api.getServices(),
+        api.getPopularServices({ limit: 5 }).catch(() => ({ data: [] as ApiService[] })),
         api.getActiveOfferBanners().catch(() => ({ data: [] as OfferBanner[] }))
       ]);
       if (catalogRequestRef.current !== requestId) return;
 
-      const needsCategoryFallback = servicesResponse.data.some((service) => !service.category);
+      const needsCategoryFallback = [...servicesResponse.data, ...popularServicesResponse.data].some((service) => !service.category);
       const categoriesResponse = needsCategoryFallback
         ? await api.getServiceCategories().catch(() => ({ data: [] as ApiServiceCategory[] }))
         : { data: [] as ApiServiceCategory[] };
@@ -258,11 +260,16 @@ export function CustomerHome() {
       const mappedServices = servicesResponse.data
         .filter((service) => service.isActive)
         .map((service) => mapApiServiceToServiceItem(service, categoryMap));
+      const mappedPopularServices = popularServicesResponse.data
+        .filter((service) => service.isActive)
+        .map((service) => mapApiServiceToServiceItem(service, categoryMap));
       setServiceCatalog(mappedServices);
+      setPopularServiceCatalog(mappedPopularServices.length > 0 ? mappedPopularServices.slice(0, 5) : mappedServices.slice(0, 5));
       setOfferBanners(offersResponse.data);
     } catch {
       if (catalogRequestRef.current !== requestId) return;
       setServiceCatalog((current) => (current.length > 0 ? current : services));
+      setPopularServiceCatalog((current) => (current.length > 0 ? current : services.slice(0, 5)));
       setOfferBanners((current) => current);
     }
   }, []);
@@ -320,9 +327,10 @@ export function CustomerHome() {
     };
   }, []);
 
-  const filteredServices = useMemo(() => {
+  const visibleHomeServices = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return serviceCatalog.filter((service) => {
+    const source = query ? serviceCatalog : popularServiceCatalog;
+    return source.filter((service) => {
       const matchesSearch =
         !query ||
         service.name.toLowerCase().includes(query) ||
@@ -331,8 +339,8 @@ export function CustomerHome() {
         (service.categoryLabel ?? categoryLabels[service.category]).toLowerCase().includes(query);
 
       return matchesSearch;
-    });
-  }, [searchQuery, serviceCatalog]);
+    }).slice(0, query ? undefined : 5);
+  }, [popularServiceCatalog, searchQuery, serviceCatalog]);
 
   const cartItems = Object.values(cart);
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -754,7 +762,7 @@ export function CustomerHome() {
       <TrustBar />
       <ServicesSection
         searchQuery={searchQuery}
-        services={filteredServices}
+        services={visibleHomeServices}
         cart={cart}
         onAdd={addService}
         onClearSearch={() => setSearchQuery("")}
@@ -1108,12 +1116,17 @@ function ServicesSection({
   onAdd: (service: ServiceItem) => void;
   onClearSearch: () => void;
 }) {
+  const isSearching = Boolean(searchQuery.trim());
+
   return (
     <section className="services-section" id="services">
       <div className="container">
         <div className="text-center mb-5">
-          <div className="section-label">Our Services</div>
-          <h2 className="section-title">Everything Your Home Needs,<br /><span>Under One Wing</span></h2>
+          <div className="section-label">{isSearching ? "Search Results" : "Booking Ranked"}</div>
+          <h2 className="section-title">
+            {isSearching ? "Matching Services in" : "Popular Services in"}<br /><span>Agartala</span>
+          </h2>
+          {!isSearching && <p className="section-support-text">Top 5 services ranked from actual booking data.</p>}
         </div>
         <div className="row g-4">
           {visibleServices.length === 0 ? (
@@ -1131,6 +1144,9 @@ function ServicesSection({
                 <div className="card-icon-wrap">
                   <ServiceIcon className="service-vector-icon card-service-vector" name={service.iconKey} title={service.name} />
                   <span className="card-category-badge">{service.categoryLabel ?? categoryLabels[service.category]}</span>
+                  {!isSearching && service.bookedQuantity != null && service.bookedQuantity > 0 && (
+                    <span className="popular-rank-badge">{service.bookedQuantity} booked</span>
+                  )}
                 </div>
                 <div className="card-body-custom">
                   <div className="card-service-name">{service.name}</div>

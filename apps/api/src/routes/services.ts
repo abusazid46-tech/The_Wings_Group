@@ -97,6 +97,87 @@ servicesRouter.get("/events", async (req, res, next) => {
   });
 });
 
+servicesRouter.get("/popular", async (req, res, next) => {
+  try {
+    const limit = clampLimit(req.query.limit);
+    const rankedItems = await prisma.bookingItem.groupBy({
+      by: ["serviceId"],
+      where: {
+        serviceId: { not: null },
+        booking: {
+          status: { notIn: ["CANCELLED", "REFUNDED"] }
+        }
+      },
+      _count: { _all: true },
+      _sum: { quantity: true },
+      orderBy: [{ _sum: { quantity: "desc" } }, { _count: { serviceId: "desc" } }],
+      take: limit * 2
+    });
+
+    const ranking = new Map(
+      rankedItems
+        .filter((item): item is typeof item & { serviceId: string } => Boolean(item.serviceId))
+        .map((item, index) => [
+          item.serviceId,
+          {
+            index,
+            bookingCount: item._count._all,
+            bookedQuantity: item._sum.quantity ?? 0
+          }
+        ])
+    );
+
+    const rankedServiceIds = Array.from(ranking.keys());
+    const rankedServices = rankedServiceIds.length > 0
+      ? await prisma.service.findMany({
+          where: { id: { in: rankedServiceIds }, isActive: true },
+          include: { category: true }
+        })
+      : [];
+
+    const orderedRankedServices = rankedServices
+      .map((service) => {
+        const rank = ranking.get(service.id);
+        return {
+          ...service,
+          bookingCount: rank?.bookingCount ?? 0,
+          bookedQuantity: rank?.bookedQuantity ?? 0,
+          __rankIndex: rank?.index ?? Number.MAX_SAFE_INTEGER
+        };
+      })
+      .sort((left, right) => left.__rankIndex - right.__rankIndex)
+      .slice(0, limit)
+      .map(({ __rankIndex: _rankIndex, ...service }) => service);
+
+    if (orderedRankedServices.length >= limit) {
+      return res.json({ data: orderedRankedServices });
+    }
+
+    const fallbackServices = await prisma.service.findMany({
+      where: {
+        isActive: true,
+        id: { notIn: orderedRankedServices.map((service) => service.id) }
+      },
+      include: { category: true },
+      orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
+      take: limit - orderedRankedServices.length
+    });
+
+    return res.json({
+      data: [
+        ...orderedRankedServices,
+        ...fallbackServices.map((service) => ({
+          ...service,
+          bookingCount: 0,
+          bookedQuantity: 0
+        }))
+      ]
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 servicesRouter.get("/", optionalAuth, async (req, res, next) => {
   try {
     const user = (req as typeof req & { authUser?: { role: "ADMIN" | "MANAGER" | "STAFF" | "CUSTOMER" } }).authUser;
@@ -257,6 +338,12 @@ function normalizeBoolean(value: unknown) {
   if (normalized === "true") return true;
   if (normalized === "false") return false;
   return value;
+}
+
+function clampLimit(value: unknown) {
+  const parsed = normalizeInteger(value);
+  if (typeof parsed !== "number" || !Number.isFinite(parsed)) return 5;
+  return Math.min(Math.max(Math.floor(parsed), 1), 12);
 }
 
 function slugify(value: string) {

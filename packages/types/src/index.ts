@@ -41,6 +41,8 @@ export type Service = {
   durationMin?: number | null;
   sortOrder: number;
   isActive: boolean;
+  bookingCount?: number;
+  bookedQuantity?: number;
 };
 
 export type ServiceCatalogEventSnapshot = {
