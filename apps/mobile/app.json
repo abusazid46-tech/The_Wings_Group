@@ -5,9 +5,14 @@
     "scheme": "thewingsgroup",
     "version": "0.1.0",
     "orientation": "portrait",
+    "icon": "./assets/the-wings-logo.png",
     "userInterfaceStyle": "light",
     "android": {
-      "package": "com.thewingsgroup.app"
+      "package": "com.thewingsgroup.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/the-wings-logo.png",
+        "backgroundColor": "#071020"
+      }
     },
     "extra": {
       "apiUrl": "http://localhost:4000"
