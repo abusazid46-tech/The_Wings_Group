@@ -23,7 +23,7 @@ import type {
   ServiceCategory,
   ServiceCreateInput
 } from "@the-wings/types";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeServiceIconKey, resolveServiceIconKey, ServiceIcon, serviceIconOptions } from "./ServiceIcon";
 
 type TabId = "dashboard" | "bookings" | "reports" | "services" | "offers" | "customers" | "leads" | "whatsapp";
@@ -405,7 +405,7 @@ export function AdminCrmDashboard() {
   const [noteForm, setNoteForm] = useState<NoteForm>({ title: "", body: "" });
   const [query, setQuery] = useState("");
   const serviceEditorRef = useRef<HTMLElement | null>(null);
-  const alertAudioRef = useRef<AudioContext | null>(null);
+  const alertAudioRef = useRef<HTMLAudioElement | null>(null);
   const lastBookingCountRef = useRef<number | null>(null);
   const alertToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -428,13 +428,12 @@ export function AdminCrmDashboard() {
 
     return () => {
       if (alertToastTimerRef.current) clearTimeout(alertToastTimerRef.current);
-      alertAudioRef.current?.close().catch(() => undefined);
+      if (alertAudioRef.current) alertAudioRef.current.pause();
     };
   }, []);
 
   async function enableAdminAlerts() {
-    const audio = await getAlertAudioContext(alertAudioRef);
-    playAdminRing(audio, 0.25);
+    await playBookingAlertSound(alertAudioRef, 0.35);
     window.localStorage.setItem(adminAlertsStorageKey, "true");
     setAlertsEnabled(true);
 
@@ -488,7 +487,7 @@ export function AdminCrmDashboard() {
     pushActivity({ title, detail, tone: "success", at: snapshot.timestamp });
 
     if (!alertsEnabled) return;
-    void getAlertAudioContext(alertAudioRef).then((audio) => playAdminRing(audio, 1)).catch((error) => {
+    void playBookingAlertSound(alertAudioRef, 1).catch((error) => {
       adminConsole("warn", "Admin alert sound could not play", error);
     });
 
@@ -2528,19 +2527,25 @@ function formatRelativeTime(value: string) {
   }).format(date);
 }
 
-async function getAlertAudioContext(ref: MutableRefObject<AudioContext | null>) {
+async function playBookingAlertSound(ref: { current: HTMLAudioElement | null }, volume = 1) {
   if (!ref.current) {
-    ref.current = new AudioContext();
+    ref.current = new Audio("/booking-alert.wav");
+    ref.current.preload = "auto";
   }
 
-  if (ref.current.state === "suspended") {
-    await ref.current.resume();
+  try {
+    ref.current.pause();
+    ref.current.currentTime = 0;
+    ref.current.volume = Math.min(Math.max(volume, 0), 1);
+    await ref.current.play();
+  } catch {
+    await playGeneratedAdminRing(volume);
   }
-
-  return ref.current;
 }
 
-function playAdminRing(audio: AudioContext, volume = 1) {
+async function playGeneratedAdminRing(volume = 1) {
+  const audio = new AudioContext();
+  if (audio.state === "suspended") await audio.resume();
   const now = audio.currentTime;
   const notes = [
     { start: 0, frequency: 880 },
@@ -2563,6 +2568,10 @@ function playAdminRing(audio: AudioContext, volume = 1) {
     oscillator.start(now + note.start);
     oscillator.stop(now + note.start + 0.18);
   }
+
+  window.setTimeout(() => {
+    audio.close().catch(() => undefined);
+  }, 1300);
 }
 
 function formatNotificationPermission(permission: NotificationPermission | "unsupported") {
