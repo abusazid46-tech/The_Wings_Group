@@ -5,17 +5,21 @@
     "scheme": "thewingsgroup",
     "version": "0.1.0",
     "orientation": "portrait",
-    "icon": "./assets/the-wings-logo.png",
+    "icon": "./assets/the-wings-icon.png",
     "userInterfaceStyle": "light",
     "android": {
       "package": "com.thewingsgroup.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/the-wings-logo.png",
+        "foregroundImage": "./assets/the-wings-icon.png",
         "backgroundColor": "#071020"
       }
     },
     "extra": {
-      "apiUrl": "http://localhost:4000"
-    }
+      "apiUrl": "http://localhost:4000",
+      "eas": {
+        "projectId": "586ca5bf-333b-4bb4-8ce5-b2d098a94cf0"
+      }
+    },
+    "owner": "aruz6"
   }
 }

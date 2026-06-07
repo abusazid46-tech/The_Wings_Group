@@ -10,5 +10,6 @@ build
 *.log
 *.tsbuildinfo
 coverage
+.expo
 android
 ios
