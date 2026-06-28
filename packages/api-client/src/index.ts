@@ -31,6 +31,14 @@ import type {
   WhatsappSendResponse
 } from "@the-wings/types";
 
+declare const process:
+  | {
+      env?: {
+        NEXT_PUBLIC_API_URL?: string;
+      };
+    }
+  | undefined;
+
 type ApiClientOptions = {
   baseUrl: string;
   token?: string;
@@ -48,7 +56,7 @@ type ApiErrorBody = {
   };
 };
 
-const deployedApiUrl = "https://the-wings-group.onrender.com";
+const deployedApiUrl = "https://the-wings-group-rz3m.onrender.com";
 const localApiUrl = "http://localhost:4000";
 
 export class ApiClientError extends Error {
@@ -76,9 +84,14 @@ function getDefaultApiUrl() {
 }
 
 function getConfiguredApiUrl() {
-  const configuredUrl = process.env.NEXT_PUBLIC_API_URL?.trim().replace(/\/$/, "");
+  const configuredUrl = getEnvApiUrl()?.trim().replace(/\/$/, "");
   if (!configuredUrl || shouldIgnoreConfiguredApiUrl(configuredUrl)) return undefined;
   return configuredUrl;
+}
+
+function getEnvApiUrl() {
+  if (typeof process === "undefined") return undefined;
+  return process.env?.NEXT_PUBLIC_API_URL;
 }
 
 function shouldIgnoreConfiguredApiUrl(configuredUrl: string) {
