@@ -14,7 +14,16 @@ import type {
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveServiceIconKey, ServiceIcon, type ServiceIconKey } from "./ServiceIcon";
-import { faqItems, seoServices, serviceAreas } from "./seo-data";
+import {
+  businessAddress,
+  businessName,
+  businessPhone,
+  faqItems,
+  seoServices,
+  serviceAreas,
+  siteUrl,
+  whatsappUrl
+} from "./seo-data";
 import { categoryLabels, quickServices, searchTerms, services, type ServiceCategoryId, type ServiceItem } from "./site-data";
 
 type CartItem = ServiceItem & { quantity: number };
@@ -65,6 +74,14 @@ declare global {
     };
   }
 }
+
+const fallbackOfferImage = "/images/offer-cleaning.svg";
+const heroServiceImages = [
+  ["uc-photo-1", "/images/service-cleaning.svg", "Deep Cleaning"],
+  ["uc-photo-2", "/images/service-ac.svg", "AC Servicing"],
+  ["uc-photo-3", "/images/service-sofa.svg", "Sofa Cleaning"],
+  ["uc-photo-4", "/images/service-security.svg", "Security & Facility Services"]
+] as const;
 
 const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey: ServiceIconKey }> = [
   { id: "all", label: "All Services", iconKey: "all" },
@@ -744,6 +761,7 @@ export function CustomerHome() {
 
   return (
     <>
+      <HomepageStructuredData />
       <Navbar
         placeholder={placeholder}
         location={location}
@@ -831,6 +849,84 @@ export function CustomerHome() {
         />
       )}
     </>
+  );
+}
+
+function HomepageStructuredData() {
+  const localBusinessSchema = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": `${siteUrl}/#localbusiness`,
+    name: businessName,
+    url: siteUrl,
+    image: `${siteUrl}/the-wings-logo.png`,
+    logo: `${siteUrl}/the-wings-logo.png`,
+    telephone: businessPhone,
+    priceRange: "Rs",
+    address: {
+      "@type": "PostalAddress",
+      ...businessAddress
+    },
+    areaServed: serviceAreas.map((area) => ({
+      "@type": "Place",
+      name: area
+    })),
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: "4.8",
+      bestRating: "5",
+      ratingCount: "500"
+    },
+    hasOfferCatalog: {
+      "@type": "OfferCatalog",
+      name: "Home services in Agartala",
+      itemListElement: seoServices.map((service) => ({
+        "@type": "Offer",
+        itemOffered: {
+          "@type": "Service",
+          name: service.name,
+          description: service.description,
+          areaServed: "Agartala",
+          url: `${siteUrl}/services/${service.slug}/`
+        }
+      }))
+    },
+    sameAs: [whatsappUrl]
+  };
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": `${siteUrl}/#website`,
+    name: businessName,
+    url: siteUrl,
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${siteUrl}/?q={search_term_string}`,
+      "query-input": "required name=search_term_string"
+    }
+  };
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer
+      }
+    }))
+  };
+
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify([localBusinessSchema, websiteSchema, faqSchema]).replace(/</g, "\\u003c")
+      }}
+    />
   );
 }
 
@@ -955,7 +1051,7 @@ function getUserInitial(session: AuthSession) {
 }
 
 function PromoPanel({ offer, onBook }: { offer: OfferBanner; onBook: (offer: OfferBanner) => void }) {
-  const imageUrl = offer.imageUrl || "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=900&q=85&fit=crop&crop=center";
+  const imageUrl = offer.imageUrl || fallbackOfferImage;
   const title = offer.offerPrice != null ? `just Rs. ${offer.offerPrice.toLocaleString()}` : offer.title;
 
   return (
@@ -993,7 +1089,7 @@ function PromoPanel({ offer, onBook }: { offer: OfferBanner; onBook: (offer: Off
           </div>
           <img
             className="promo-image"
-            src="https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=900&q=85&fit=crop&crop=center"
+            src="/images/offer-cleaning.svg"
             alt="Professional home cleaning offer"
           />
         </div>
@@ -1016,7 +1112,7 @@ function Hero({
         <div className="row align-items-center gy-4">
           <div className="col-lg-6 uc-hero-left">
             <div className="uc-hero-eyebrow">🪽 Agartala&apos;s #1 Home Services</div>
-            <h1 className="uc-hero-h1">Home services<br />at your <em>doorstep</em></h1>
+            <h1 className="uc-hero-h1">Home services in <em>Agartala</em><br />at your doorstep</h1>
             <p className="uc-hero-sub">Professional cleaning, AC servicing, tank washing, security and more — booked in seconds. Pay only after the job is done.</p>
 
             <div className="uc-service-grid">
@@ -1063,12 +1159,7 @@ function Hero({
 
           <div className="col-lg-6">
             <div className="uc-hero-photos">
-              {[
-                ["uc-photo-1", "https://images.unsplash.com/photo-1581578731548-c64695cc6952?w=700&q=85&fit=crop&crop=center", "🧹 Deep Cleaning"],
-                ["uc-photo-2", "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?w=700&q=85&fit=crop&crop=top", "❄️ AC Servicing"],
-                ["uc-photo-3", "https://images.unsplash.com/photo-1558317374-067fb5f30001?w=600&q=85&fit=crop&crop=center", "🛋️ Sofa Cleaning"],
-                ["uc-photo-4", "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1000&q=85&fit=crop&crop=center", "🛡️ Security & Facility Services"]
-              ].map(([className, src, label]) => (
+              {heroServiceImages.map(([className, src, label]) => (
                 <div className={`uc-photo ${className}`} key={label}>
                   <img src={src} alt={label} />
                   <div className="uc-photo-label">{label}</div>
@@ -1441,7 +1532,7 @@ export function SiteFooter() {
             <Link className="footer-link" href="/about#mvv">Mission & Values</Link>
             <a className="footer-link" href="#how">How it Works</a>
             <a className="footer-link" href="https://wa.me/919774887803?text=Hi%20Wings%20Group%2C%20I%27d%20like%20to%20know%20about%20career%20opportunities.">Careers</a>
-            <a className="footer-link" href="#contact">T&C Apply</a>
+            <Link className="footer-link" href="/terms">Terms & Conditions</Link>
           </div>
           <div className="col-lg-4">
             <div className="footer-heading">Contact Us</div>
@@ -1450,7 +1541,7 @@ export function SiteFooter() {
             <a className="footer-link" href="https://wa.me/919774887803"><i className="bi bi-whatsapp me-2" />WhatsApp Us</a>
           </div>
         </div>
-        <div className="footer-bottom">© 2026 The Wings Group. All rights reserved. · T&C Apply · Cash on Delivery Only</div>
+        <div className="footer-bottom">© 2026 The Wings Group. All rights reserved. · <Link href="/terms">Terms & Conditions</Link> · Cash on Delivery Only</div>
       </div>
     </footer>
   );

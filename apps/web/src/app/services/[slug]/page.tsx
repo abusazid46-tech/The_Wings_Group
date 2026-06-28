@@ -6,12 +6,71 @@ import {
   businessPhone,
   findSeoService,
   seoServices,
+  type SeoServiceSlug,
   serviceAreas,
   siteUrl
 } from "@/components/seo-data";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
+};
+
+const serviceSeoHighlights: Record<SeoServiceSlug, string[]> = {
+  "toilet-bath": [
+    "Attached bathroom, toilet, tile, and fixture cleaning packages.",
+    "Stain, odour, and hygiene-focused cleaning for Agartala homes.",
+    "Single, double, and multi-bathroom options for families and rentals."
+  ],
+  "tank-wash": [
+    "Overhead and underground tank cleaning support.",
+    "Sludge removal, scrubbing, and bleaching treatment options.",
+    "Useful for homes, apartments, shops, and small facilities in Agartala."
+  ],
+  "ac-repair": [
+    "Foam jet AC service, installation, gas filling, and repair enquiries.",
+    "Indoor and outdoor unit cleaning options for better cooling.",
+    "Support for seasonal servicing before Agartala summer demand."
+  ],
+  "sofa-clean": [
+    "Sofa, carpet, upholstery, and dining chair cleaning enquiries.",
+    "Dry wash and deep cleaning options based on fabric condition.",
+    "Good for homes, offices, rentals, and post-event cleanup."
+  ],
+  "deep-clean": [
+    "2 BHK, 3 BHK, and full-house cleaning options.",
+    "Designed for move-in, festival, tenant change, and deep hygiene needs.",
+    "Room-wise cleaning scope can be confirmed before service."
+  ],
+  "kitchen-appliances": [
+    "Kitchen chimney, fridge, microwave, gas stove, fan, and window cleaning.",
+    "Appliance-focused add-ons for kitchens that need targeted cleanup.",
+    "Flexible package selection for small kitchens and larger family homes."
+  ],
+  "aya-housemaid": [
+    "Instant maid, one-time maid enquiry, baby care, and patient-care support.",
+    "Best for households that need care or domestic help in Agartala.",
+    "Duty timing and scope can be confirmed before assigning staff."
+  ],
+  "pest-control": [
+    "Home and commercial pest control enquiries.",
+    "Useful for kitchens, apartments, shops, and recurring pest issues.",
+    "Treatment scope can be checked by pest type and property size."
+  ],
+  "painter-plumber": [
+    "Painting, plumbing, carpenter, and small repair enquiries.",
+    "Rate confirmation after site verification where required.",
+    "Helpful for urgent fixes, renovation support, and maintenance visits."
+  ],
+  "saloon-spa": [
+    "At-home salon, grooming, spa, and beauty service enquiries.",
+    "Convenient booking support for customers in Agartala.",
+    "Service availability can be confirmed by preferred date and treatment."
+  ],
+  security: [
+    "Domestic, private, and corporate security guard enquiries.",
+    "12-hour duty options can be confirmed by location and requirement.",
+    "Facility manpower support for homes, offices, and commercial premises."
+  ]
 };
 
 export const dynamicParams = false;
@@ -56,6 +115,7 @@ export default async function ServiceSeoPage({ params }: PageProps) {
   const { slug } = await params;
   const service = findSeoService(slug) ?? seoServices[0];
   const relatedServices = seoServices.filter((item) => item.slug !== service.slug).slice(0, 6);
+  const highlights = serviceSeoHighlights[service.slug];
 
   const serviceSchema = {
     "@context": "https://schema.org",
@@ -117,12 +177,11 @@ export default async function ServiceSeoPage({ params }: PageProps) {
                 Service availability is focused on Agartala and nearby areas including {serviceAreas.slice(1, 6).join(", ")}.
                 For the fastest confirmation, book online or call the team directly.
               </p>
-              <h3>Why choose us in Agartala?</h3>
+              <h3>Why choose The Wings Group for {service.name}?</h3>
               <ul>
-                <li>Local Agartala service team and customer support.</li>
-                <li>Verified professionals for cleaning, repair, care, and security work.</li>
-                <li>Cash on delivery and online payment options where available.</li>
-                <li>Simple website booking with booking history and status updates.</li>
+                {highlights.map((highlight) => (
+                  <li key={highlight}>{highlight}</li>
+                ))}
               </ul>
             </article>
             <aside className="seo-contact-card">
