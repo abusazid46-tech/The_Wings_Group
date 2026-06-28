@@ -75,12 +75,12 @@ declare global {
   }
 }
 
-const fallbackOfferImage = "/images/offer-cleaning.svg";
+const fallbackOfferImage = "/images/offer-cleaning.png";
 const heroServiceImages = [
-  ["uc-photo-1", "/images/service-cleaning.svg", "Deep Cleaning"],
-  ["uc-photo-2", "/images/service-ac.svg", "AC Servicing"],
-  ["uc-photo-3", "/images/service-sofa.svg", "Sofa Cleaning"],
-  ["uc-photo-4", "/images/service-security.svg", "Security & Facility Services"]
+  ["uc-photo-1", "/images/service-cleaning.png", "Deep Cleaning"],
+  ["uc-photo-2", "/images/service-ac.png", "AC Servicing"],
+  ["uc-photo-3", "/images/service-sofa.png", "Sofa Cleaning"],
+  ["uc-photo-4", "/images/service-security.png", "Security & Facility Services"]
 ] as const;
 
 const categories: Array<{ id: "all" | ServiceCategoryId; label: string; iconKey: ServiceIconKey }> = [
@@ -1076,28 +1076,6 @@ function PromoPanel({ offer, onBook }: { offer: OfferBanner; onBook: (offer: Off
   );
 
 }
-
-/*
-  return (
-    <section className="promo-panel" aria-label="Limited time service offer">
-      <div className="container">
-        <div className="promo-panel-inner">
-          <div className="promo-copy">
-            <div className="promo-price">just ₹99 <del>₹245</del></div>
-            <div className="promo-offer">60% OFF</div>
-            <a className="promo-action" href="#services">Book now <i className="bi bi-arrow-right" /></a>
-          </div>
-          <img
-            className="promo-image"
-            src="/images/offer-cleaning.svg"
-            alt="Professional home cleaning offer"
-          />
-        </div>
-      </div>
-    </section>
-  );
-}
-*/
 
 function Hero({
   selectedCategory,
