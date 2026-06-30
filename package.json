@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
+    "hostinger:build": "pnpm --filter @the-wings/api db:generate && pnpm --filter @the-wings/api build",
+    "hostinger:start": "pnpm --filter @the-wings/api start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
