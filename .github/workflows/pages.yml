@@ -43,7 +43,7 @@ jobs:
         run: pnpm --filter @the-wings/web build
         env:
           NEXT_PUBLIC_BASE_PATH: /The_Wings_Group
-          NEXT_PUBLIC_API_URL: https://api.example.com
+          NEXT_PUBLIC_API_URL: https://the-wings-group-lomk.onrender.com
 
       - name: Upload web artifact
         uses: actions/upload-pages-artifact@v3
